@@ -1,0 +1,678 @@
+<title>Konya Merkez Maket</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: harita tüm ekranı kaplar; üstte marka + arama, altta yer kartları şeridi, sağ altta mini harita, sağda zoom */
+  :root {
+    --ground: #e9e5dc;         /* harita çevresi */
+    --glass: rgba(255, 255, 255, .78);
+    --glass-strong: rgba(255, 255, 255, .94);
+    --ink: #1b2422;
+    --ink-soft: #55605d;
+    --hair: rgba(27, 36, 34, .12);
+    --turquoise: #12877c;      /* Mevlâna kubbesinin rengi */
+    --turquoise-soft: rgba(18, 135, 124, .14);
+    --pin: #ffffff;
+    --shadow: 0 10px 30px rgba(20, 30, 28, .18), 0 1px 2px rgba(20, 30, 28, .12);
+    --display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+    --body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --gl: max(16px, env(safe-area-inset-left, 0px));
+    --gr: max(16px, env(safe-area-inset-right, 0px));
+    --gt: max(14px, env(safe-area-inset-top, 0px));
+    --gb: max(14px, env(safe-area-inset-bottom, 0px));
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --ground: #171c1d; --glass: rgba(22, 28, 29, .76); --glass-strong: rgba(26, 33, 34, .95); --ink: #eef1ec; --ink-soft: #a3aea9;
+    --hair: rgba(238, 241, 236, .14); --turquoise: #3cc2b4; --turquoise-soft: rgba(60, 194, 180, .18); --pin: #1b2422;
+    --shadow: 0 10px 30px rgba(0, 0, 0, .45), 0 1px 2px rgba(0, 0, 0, .4); color-scheme: dark } }
+  :root[data-theme="dark"] {
+    --ground: #171c1d; --glass: rgba(22, 28, 29, .76); --glass-strong: rgba(26, 33, 34, .95); --ink: #eef1ec; --ink-soft: #a3aea9;
+    --hair: rgba(238, 241, 236, .14); --turquoise: #3cc2b4; --turquoise-soft: rgba(60, 194, 180, .18); --pin: #1b2422;
+    --shadow: 0 10px 30px rgba(0, 0, 0, .45), 0 1px 2px rgba(0, 0, 0, .4); color-scheme: dark }
+
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font: 14px/1.4 var(--body); overflow: hidden; -webkit-font-smoothing: antialiased; }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--turquoise); outline-offset: 2px; }
+
+  #view { position: fixed; inset: 0; overflow: hidden; cursor: grab; touch-action: none; }
+  #view.drag { cursor: grabbing; }
+  #stage { position: absolute; inset: 0; overflow: hidden; z-index: 0; }
+  #pins { z-index: 1; }
+  #stage img { position: absolute; left: 0; top: 0; display: block; transform-origin: 0 0; user-select: none; -webkit-user-drag: none; pointer-events: none; max-width: none; }
+  #stage .piece { opacity: 0; transition: opacity .5s ease; }
+  #stage .piece.on { opacity: 1; }
+  #pins { position: absolute; inset: 0; pointer-events: none; }
+  .pin { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; pointer-events: auto; cursor: pointer;
+    transition: opacity .25s ease; background: none; border: 0; padding: 0; }
+  .pin[data-hide="1"] { opacity: 0; pointer-events: none; }
+  .pin b { font: 600 12px/1 var(--body); letter-spacing: .01em; white-space: nowrap; color: var(--ink); background: var(--glass-strong);
+    padding: 6px 10px; border-radius: 999px; box-shadow: var(--shadow); }
+  .pin i { width: 2px; height: 14px; background: var(--glass-strong); box-shadow: var(--shadow); }
+  .pin u { width: 9px; height: 9px; border-radius: 50%; background: var(--turquoise); border: 2px solid var(--pin); box-shadow: var(--shadow); margin-top: -1px; }
+  .pin.r2 b { font-weight: 500; font-size: 11px; padding: 5px 9px; }
+  .pin:hover b, .pin.active b { background: var(--turquoise); color: #fff; }
+
+  .glass { background: var(--glass); backdrop-filter: blur(14px) saturate(1.3); -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    border: 1px solid var(--hair); box-shadow: var(--shadow); }
+
+  /* üst bar */
+  #top { position: fixed; top: var(--gt); left: var(--gl); right: var(--gr); display: flex; gap: 10px; align-items: flex-start; pointer-events: none; z-index: 5; }
+  #top > * { pointer-events: auto; }
+  .brand { border-radius: 16px; padding: 8px 16px 9px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .brand h1 { margin: 0; font: 400 30px/1 var(--display); letter-spacing: -.01em; }
+  .brand h1 em { color: var(--turquoise); }
+  .brand .coord { font: 11px var(--mono); color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .search { margin-left: auto; position: relative; width: min(320px, 40vw); }
+  .search input { width: 100%; box-sizing: border-box; height: 44px; border-radius: 14px; padding: 0 14px 0 38px; border: 1px solid var(--hair);
+    background: var(--glass); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: var(--shadow); outline: none; }
+  .search input::placeholder { color: var(--ink-soft); }
+  .search input:focus { border-color: var(--turquoise); }
+  .search svg { position: absolute; z-index: 1; pointer-events: none; left: 13px; top: 14px; width: 16px; height: 16px; stroke: var(--ink-soft); fill: none; stroke-width: 2; }
+  #results { position: absolute; top: 50px; left: 0; right: 0; border-radius: 14px; overflow: hidden; padding: 4px; margin: 0; list-style: none; }
+  #results li button { width: 100%; text-align: left; border: 0; background: none; padding: 8px 10px; border-radius: 10px; display: flex; justify-content: space-between; gap: 8px; }
+  #results li button:hover, #results li button.sel { background: var(--turquoise-soft); }
+  #results small { color: var(--ink-soft); font-size: 12px; }
+  .iconbtn { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; border: 1px solid var(--hair); }
+  .iconbtn svg { width: 18px; height: 18px; stroke: var(--ink); fill: none; stroke-width: 1.8; }
+
+  /* sağ: zoom + pusula */
+  #side { position: fixed; right: var(--gr); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 10px; z-index: 4; }
+  .zoom { border-radius: 14px; display: flex; flex-direction: column; overflow: hidden; }
+  .zoom button { width: 44px; height: 44px; border: 0; background: none; font-size: 20px; line-height: 1; }
+  .zoom button + button { border-top: 1px solid var(--hair); }
+  .zoom button:hover { background: var(--turquoise-soft); }
+  .compass { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; }
+  .compass svg { width: 26px; height: 26px; transform: rotate(-20deg); }
+
+  /* alt: yer kartları */
+  #dock { position: fixed; left: 50%; transform: translateX(-50%); bottom: var(--gb); z-index: 4; display: flex; align-items: center; gap: 8px;
+    max-width: calc(100% - 2 * (var(--gr) + 206px)); }
+  #cards { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 6px; border-radius: 18px; scrollbar-width: none; }
+  #cards::-webkit-scrollbar { display: none; }
+  .card { flex: none; width: 132px; height: 92px; border-radius: 12px; position: relative; overflow: hidden; border: 0; padding: 0; scroll-snap-align: start;
+    background: var(--hair); transition: transform .2s ease; }
+  .card img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .4s ease; }
+  .card:hover img { transform: scale(1.06); }
+  .card span { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 8px 7px; text-align: left; color: #fff; font: 600 12px/1.15 var(--body);
+    background: linear-gradient(transparent, rgba(0, 0, 0, .68)); }
+  .card.active { outline: 2px solid var(--turquoise); outline-offset: 0; }
+  .arrow { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--hair); flex: none; }
+  .arrow svg { width: 16px; height: 16px; stroke: var(--ink); fill: none; stroke-width: 2; }
+
+  /* sağ alt: mini harita + ölçek */
+  #mini { position: fixed; right: var(--gr); bottom: var(--gb); width: 190px; border-radius: 14px; overflow: hidden; z-index: 4; cursor: pointer; padding: 0; }
+  #mini img { display: block; width: 100%; height: auto; }
+  #mini .vp { position: absolute; border: 2px solid var(--turquoise); background: var(--turquoise-soft); border-radius: 3px; pointer-events: none; }
+  #scale { position: fixed; left: var(--gl); bottom: var(--gb); z-index: 4; border-radius: 10px; padding: 6px 10px 7px; font: 11px var(--mono); color: var(--ink-soft); }
+  #scale .bar { height: 5px; border: 1.5px solid var(--ink); border-top: 0; margin-top: 3px; }
+
+  /* bilgi paneli */
+  #about { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; background: rgba(10, 16, 15, .35); padding-left: var(--gl); padding-right: var(--gr); }
+  #about .box { max-width: 440px; border-radius: 20px; padding: 22px 24px; background: var(--glass-strong); }
+  #about h2 { margin: 0 0 6px; font: 400 32px/1.05 var(--display); text-wrap: balance; }
+  #about p { margin: 8px 0; color: var(--ink-soft); line-height: 1.55; }
+  #about dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 14px 0 18px; font-size: 13px; }
+  #about dt { color: var(--ink-soft); }
+  #about dd { margin: 0; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+  #about .close { border: 0; background: var(--ink); color: var(--ground); padding: 10px 18px; border-radius: 12px; font-weight: 600; }
+
+
+  /* yer paneli: masaüstünde sağda, telefonda alttan açılan sayfa */
+  #panel { position: fixed; z-index: 6; right: var(--gr); top: calc(var(--gt) + 58px); width: 360px; max-height: calc(100% - var(--gt) - 58px - var(--gb)); border-radius: 20px; overflow: hidden auto;
+    display: flex; flex-direction: column; background: var(--glass-strong); transition: transform .28s ease, opacity .28s ease; }
+  #panel[hidden] { display: none !important; }
+  #panel .hero { position: relative; flex: none; aspect-ratio: 660 / 432; min-height: 0; overflow: hidden; background: var(--hair); }
+  #panel .hero img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+  #panel .x { position: absolute; top: 10px; right: 10px; width: 40px; height: 40px; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--glass-strong); box-shadow: var(--shadow); }
+  #panel .x svg, .sheet-x svg { width: 16px; height: 16px; stroke: var(--ink); fill: none; stroke-width: 2.2; }
+  #panel .body { padding: 16px 20px 18px; display: grid; gap: 10px; min-width: 0; }
+  #panel .kind { font: 500 11px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--turquoise); }
+  #panel h2 { margin: 0; font: 400 34px/1.05 var(--display); text-wrap: balance; }
+  #panel .sub { margin: 0; color: var(--ink-soft); font-size: 13px; }
+  #panel .desc { margin: 2px 0 0; line-height: 1.55; font-size: 15px; }
+  #panel .acts { display: flex; gap: 8px; margin-top: 6px; }
+  .btn { height: 44px; border-radius: 12px; border: 1px solid var(--hair); background: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 14px; font-weight: 600; }
+  .btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; }
+  .btn.pri { flex: 1; background: var(--turquoise); color: #fff; border-color: transparent; }
+  .btn:not(.pri):hover { background: var(--turquoise-soft); }
+  .sharebtn { height: 44px; border-radius: 14px; padding: 0 14px; display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--hair); font-weight: 600; }
+  .sharebtn svg { width: 16px; height: 16px; stroke: var(--ink); fill: none; stroke-width: 1.9; }
+  body.has-panel #side { right: calc(var(--gr) + 372px); }
+  body.has-panel #mini { display: none; }
+  body.has-panel #dock { max-width: calc(100% - 2 * (var(--gr) + 380px)); }
+
+  /* paylaşım penceresi */
+  #share { position: fixed; inset: 0; z-index: 12; display: grid; place-items: center; background: rgba(10, 16, 15, .5); padding-left: var(--gl); padding-right: var(--gr); padding-block: var(--gt) var(--gb); }
+  #share[hidden] { display: none !important; }
+  #share .box { width: min(560px, 100%); max-height: 100%; overflow: auto; border-radius: 20px; background: var(--glass-strong); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: var(--shadow); padding: 14px; display: grid; gap: 12px; position: relative; min-width: 0; }
+  .sheet-x { position: absolute; top: 10px; right: 10px; z-index: 1; width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--glass-strong); box-shadow: var(--shadow); display: grid; place-items: center; }
+  #prevWrap { display: grid; place-items: center; min-height: 240px; border-radius: 14px; background: rgba(27, 36, 34, .08); padding: 10px; }
+  #prev2 { display: block; max-width: 100%; max-height: 52vh; border-radius: 6px; box-shadow: var(--shadow); }
+  #prevBusy { color: var(--ink-soft); font-size: 13px; }
+  .tabs { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: rgba(27, 36, 34, .07); }
+  .tabs button { flex: 1; min-width: 0; height: 38px; border: 0; background: none; border-radius: 9px; font-weight: 500; font-size: 13px; color: var(--ink-soft); }
+  .tabs button[aria-selected="true"] { background: var(--glass-strong); color: var(--ink); font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
+  .shareacts { display: grid; grid-template-columns: repeat(auto-fit, minmax(68px, 1fr)); gap: 6px; }
+  .shareacts > * { display: grid; justify-items: center; gap: 5px; padding: 8px 2px; border: 0; background: none; border-radius: 12px; font-size: 12px; color: var(--ink); text-decoration: none; cursor: pointer; }
+  .shareacts > *:hover { background: var(--turquoise-soft); }
+  .shareacts .ic { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--hair); }
+  .shareacts svg { width: 18px; height: 18px; stroke: var(--ink); fill: none; stroke-width: 1.9; }
+  #shareMsg { margin: 0; min-height: 18px; font-size: 13px; color: var(--ink-soft); text-align: center; }
+  #shareLink { width: 100%; box-sizing: border-box; height: 40px; border-radius: 10px; border: 1px solid var(--hair); background: none; padding: 0 10px; font: 12px var(--mono); }
+
+  #loading { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 10px 16px; border-radius: 12px; font-size: 12px; color: var(--ink-soft);
+    z-index: 3; transition: opacity .5s; pointer-events: none; }
+  #loading.done { opacity: 0; }
+
+  @media (max-width: 760px) {
+    .brand { padding: 8px 12px 9px; }
+    .brand h1 { font-size: 22px; }
+    .brand .coord { display: none; }
+    .search { width: auto; flex: 1; min-width: 0; margin-left: 0; }
+    #mini, .arrow, #side .compass { display: none; }
+    #dock { left: var(--gl); right: var(--gr); transform: none; max-width: none; bottom: calc(var(--gb) + 40px); }
+    #cards { width: 100%; }
+    .card { width: 112px; height: 80px; }
+    #side { top: auto; bottom: calc(var(--gb) + 150px); transform: none; }
+
+    .sharebtn span { display: none; }
+    .sharebtn { width: 44px; padding: 0; justify-content: center; }
+    #panel { left: 0; right: 0; bottom: 0; top: auto; width: auto; max-height: 62vh; border-radius: 20px 20px 0 0; padding-bottom: env(safe-area-inset-bottom, 0px); }
+    #panel .hero { aspect-ratio: 660 / 260; }
+    #panel h2 { font-size: 28px; }
+    #panel .body { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+    body.has-panel #dock, body.has-panel #side, body.has-panel #scale { display: none; }
+    #prev2 { max-height: 44vh; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div id="view">
+  <div id="stage"></div>
+  <div id="pins"></div>
+</div>
+
+<header id="top">
+  <div class="brand glass">
+    <h1>Konya <em>merkez</em></h1>
+    <span class="coord" id="coord">37.8716° K · 32.4990° D · 1.016 m</span>
+  </div>
+  <div class="search">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="q" type="search" placeholder="Yer ara" autocomplete="off" aria-label="Yer ara">
+    <ul id="results" class="glass" hidden></ul>
+  </div>
+  <button class="sharebtn glass" id="shareView" type="button" aria-label="Bu görünümü paylaş"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/></svg><span>Paylaş</span></button>
+  <button class="iconbtn glass" id="info" type="button" aria-label="Harita hakkında">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>
+  </button>
+</header>
+
+<div id="side">
+  <div class="zoom glass">
+    <button id="zin" type="button" aria-label="Yakınlaş">+</button>
+    <button id="zout" type="button" aria-label="Uzaklaş">−</button>
+    <button id="fit" type="button" aria-label="Tümünü göster" title="Tümünü göster">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+    </button>
+  </div>
+  <div class="compass glass" title="Kuzey">
+    <svg viewBox="0 0 26 26"><path d="M13 2 17 13h-8z" fill="#d6453a"/><path d="M13 24 9 13h8z" fill="var(--ink-soft)"/></svg>
+  </div>
+</div>
+
+<div id="dock">
+  <button class="arrow glass" id="prev" type="button" aria-label="Önceki yerler"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></button>
+  <div id="cards" class="glass" role="list"></div>
+  <button class="arrow glass" id="next" type="button" aria-label="Sonraki yerler"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></button>
+</div>
+
+<button id="mini" class="glass" type="button" aria-label="Mini harita: tıklanan yere git"><img src="mini.jpg" alt=""><div class="vp" id="vp"></div></button>
+<div id="scale" class="glass"><span id="scaleTxt">100 m</span><div class="bar" id="scaleBar" style="width:80px"></div></div>
+<div id="loading" class="glass">Harita yükleniyor…</div>
+
+
+<aside id="panel" class="glass" aria-label="Yer bilgisi" hidden>
+  <div class="hero"><img id="pImg" alt=""><button class="x" id="pClose" type="button" aria-label="Paneli kapat"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <div class="body">
+    <div class="kind" id="pKind"></div>
+    <h2 id="pName"></h2>
+    <p class="sub" id="pSub"></p>
+    <p class="desc" id="pDesc"></p>
+    <div class="acts">
+      <button class="btn pri" id="pShare" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/></svg>Paylaş</button>
+      <button class="btn" id="pPrev" type="button" aria-label="Önceki yer"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></button>
+      <button class="btn" id="pNext" type="button" aria-label="Sonraki yer"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></button>
+    </div>
+  </div>
+</aside>
+
+<div id="share" role="dialog" aria-modal="true" aria-label="Paylaş" hidden>
+  <div class="box">
+    <button class="sheet-x" id="sClose" type="button" aria-label="Kapat"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    <div id="prevWrap"><img id="prev2" alt="Paylaşılacak kartın önizlemesi" hidden><span id="prevBusy">Kart hazırlanıyor…</span></div>
+    <div class="tabs" role="tablist" aria-label="Kart biçimi">
+      <button type="button" role="tab" data-k="postcard">Kartpostal</button>
+      <button type="button" role="tab" data-k="story">Hikâye</button>
+      <button type="button" role="tab" data-k="photo">Fotoğraf</button>
+      <button type="button" role="tab" data-k="stamp">Pul</button>
+    </div>
+    <div class="shareacts">
+      <button type="button" id="sCopy"><span class="ic"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg></span>Bağlantı</button>
+      <a id="sWa" target="_blank" rel="noopener"><span class="ic"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.5 8.5 0 0 1-12.6 7.4L3 21l2.1-5.3A8.5 8.5 0 1 1 21 11.5z"/></svg></span>WhatsApp</a>
+      <a id="sX" target="_blank" rel="noopener"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 4l16 16M20 4 4 20"/></svg></span>X</a>
+      <a id="sTg" target="_blank" rel="noopener"><span class="ic"><svg viewBox="0 0 24 24"><path d="M21 4 3 11l6 2.5L18 7l-6.5 8 6 4.5z"/></svg></span>Telegram</a>
+      <button type="button" id="sSave" hidden><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg></span>Kaydet</button>
+    </div>
+    <input id="shareLink" readonly aria-label="Paylaşım bağlantısı" hidden>
+    <p id="shareMsg" role="status"></p>
+  </div>
+</div>
+
+<div id="about" hidden>
+  <div class="box">
+    <h2>Alaaddin Tepesi’nden Mevlâna’ya</h2>
+    <p>Konya’nın tarihi çekirdeği, kuşbakışı bir maket gibi. Selçuklu başkentinin tepesinden Mevlâna Türbesi’ne uzanan yaklaşık 1,1 kilometrelik aks, çarşısı, camileri ve meydanlarıyla.</p>
+    <p>Sürükleyerek gezin, tekerlek ya da iki parmakla yakınlaşın, bir yere dokununca hakkında bilgi açılır.</p>
+    <p>Harita bir yorumdur: yerler gerçek konumlarında, ancak kat sayıları ve bina ayrıntıları temsilîdir.</p>
+    <dl>
+      <dt>Konum</dt><dd>37,87° K · 32,50° D</dd>
+      <dt>Rakım</dt><dd>1.016 m</dd>
+      <dt>Bakış</dt><dd>güneyden, 30° eğik</dd>
+      <dt>Çözünürlük</dt><dd>9.613 × 4.509 piksel</dd>
+    </dl>
+    <button class="close" id="closeAbout" type="button">Haritaya dön</button>
+  </div>
+</div>
+
+<script>
+  const DATA = {"w": 9613, "h": 4509, "tile": 1024, "levels": [{"z": 0, "f": 1, "cols": 10, "rows": 5, "lw": 9613, "lh": 4509}, {"z": 1, "f": 2, "cols": 5, "rows": 3, "lw": 4806, "lh": 2254}], "places": [{"id": "th-mevlana", "slug": "mevlana", "name": "Mevlâna Müzesi", "sub": "Yeşil Kubbe · 1274", "kind": "Türbe ve müze", "desc": "Mevlâna Celâleddin Rûmî’nin türbesi. Turkuaz çinili Yeşil Kubbe, 1274’te şairin mezarı üzerine yapıldı. Türbe ve dergâh 1926’da müzeye çevrildi; Konya’nın simgesi bugün de bu kubbedir.", "x": 0.94351, "y": 0.75405, "rank": 1, "lat": 37.87068, "lon": 32.50497}, {"id": "th-selim", "slug": "selim", "name": "Sultan Selim Camii", "sub": "Osmanlı · 1558–1567", "kind": "Cami", "desc": "Mevlâna Müzesi’nin hemen batısındaki iki minareli büyük cami. Yapımına II. Selim şehzadeyken, Konya’da sancak beyi olduğu yıllarda başlandı; 1567’de tamamlandı.", "x": 0.85316, "y": 0.78363, "rank": 1, "lat": 37.87037, "lon": 32.50417}, {"id": "th-tepe", "slug": "tepe", "name": "Alaaddin Tepesi", "sub": "Selçuklu sarayının tepesi", "kind": "Tarihî höyük ve park", "desc": "Şehrin ortasında, çevresinden yaklaşık 20 metre yükselen tarihî höyük. Selçuklu başkentinin sarayı ve camisi buradaydı; bugün Konya’nın en sevilen parklarından biri.", "x": 0.12442, "y": 0.19969, "rank": 1, "lat": 37.873, "lon": 32.4933}, {"id": "th-alaeddin", "slug": "alaeddin", "name": "Alaeddin Camii", "sub": "Selçuklu · 12.–13. yüzyıl", "kind": "Cami", "desc": "Alaaddin Tepesi’ndeki Selçuklu camisi. Yapımı 12. yüzyıla uzanır, bugünkü hâlini 13. yüzyılda aldı; kaynaklar kesin tarihlerde ayrışır. Adını Sultan Alâeddin Keykubad’dan alır.", "x": 0.10195, "y": 0.12819, "rank": 2, "lat": 37.87332, "lon": 32.49291}, {"id": "th-aziziye", "slug": "aziziye", "name": "Aziziye Camii", "sub": "Geç Osmanlı · 1874", "kind": "Cami", "desc": "İlk yapı 17. yüzyılda Mustafa Paşa tarafından yaptırıldı, 1867 yangınında harap oldu. Sultan Abdülaziz ve annesi Pertevniyal Valide Sultan’ın desteğiyle yeniden inşa edilip 1874’te açıldı. Adını Abdülaziz’den alır.", "x": 0.58328, "y": 0.7213, "rank": 1, "lat": 37.87, "lon": 32.50076}, {"id": "th-kapu", "slug": "kapu", "name": "Kapu Camii", "sub": "Osmanlı · 1658, yeniden 1868", "kind": "Cami", "desc": "1658’de Mevlevî Dergâhı postnişini Pir Hüseyin Çelebi yaptırdı; 1811’de yenilendi, 1867 yangınında yandı ve 1868’de yeniden inşa edildi. Adını yakındaki eski sur kapısından alır. Çarşının ortasında, avlusuz bir platform üzerinde yükselir.", "x": 0.46557, "y": 0.68594, "rank": 1, "lat": 37.86991, "lon": 32.49924}, {"id": "th-bedesten", "slug": "bedesten", "name": "Tarihi Bedesten", "sub": "Çarşı", "kind": "Tarihî çarşı", "desc": "Kapu Camii çevresine yayılan tarihî çarşı bölgesi. Sıra sıra dükkânları ve dar sokaklarıyla şehrin eski ticaret merkezi.", "x": 0.51379, "y": 0.6215, "rank": 2, "lat": 37.870636, "lon": 32.499547}, {"id": "th-hukumet", "slug": "hukumet", "name": "Hükümet Meydanı", "sub": "Valilik önü", "kind": "Meydan", "desc": "Mevlâna Caddesi üzerinde, adını çevresindeki hükümet binalarından alan merkezî meydan. Alaaddin Tepesi ile Mevlâna Müzesi arasındaki aksın ortalarında yer alır.", "x": 0.53984, "y": 0.45592, "rank": 2, "lat": 37.87217, "lon": 32.49919}, {"id": "th-serafeddin", "slug": "serafeddin", "name": "Şerafeddin Camii", "sub": "Osmanlı dönemi", "kind": "Cami", "desc": "İlk olarak 13. yüzyılda Şeyh Şerafeddin adına yapıldığı aktarılır. Bugünkü büyük kubbeli yapı Osmanlı dönemine aittir.", "x": 0.50302, "y": 0.41873, "rank": 2, "lat": 37.87237, "lon": 32.49861}, {"id": "th-iplikci", "slug": "iplikci", "name": "İplikçi Camii", "sub": "Selçuklu · 1202", "kind": "Cami", "desc": "Selçuklu dönemi camisi. Mevcut bina 1202 tarihlidir, Ebü’l-Fazl Camii adıyla da bilinir. Yüzyıllar içinde birkaç kez onarıldı.", "x": 0.34257, "y": 0.41603, "rank": 2, "lat": 37.87185, "lon": 32.49672}, {"id": "th-sems", "slug": "sems", "name": "Şems-i Tebrizî", "sub": "Türbe ve cami · 14. yüzyıl", "kind": "Türbe ve cami", "desc": "Mevlâna’nın yakın dostu Şems-i Tebrizî adına anılan türbe ve cami. Türbe 14. yüzyıldan kalmadır; içinde Şems’e ait olduğu kabul edilen büyük bir lahit bulunur. Hemen yanında Şems Parkı uzanır.", "x": 0.46456, "y": 0.25378, "rank": 2, "lat": 37.87368, "lon": 32.4975}, {"id": "th-pavlus", "slug": "pavlus", "name": "Aziz Pavlus Kilisesi", "sub": "Katolik · 1910", "kind": "Kilise", "desc": "Konya’da ayakta kalan tek Katolik yapı. 1910’da Asomsiyonist rahipler tarafından yaptırıldı, Fransız gotik üslubunda bir cephesi vardır.", "x": 0.04577, "y": 0.39366, "rank": 2, "lat": 37.87093, "lon": 32.49322}, {"id": "th-turbeonu", "slug": "turbeonu", "name": "Türbe Önü", "sub": "Mevlâna caddesi başı", "kind": "Çarşı ve cadde", "desc": "Mevlâna Müzesi’ne ulaşan caddenin başı. Türbe Önü Çarşısı’nın dükkânları ziyaretçileri müzeye doğru karşılar.", "x": 0.73523, "y": 0.72643, "rank": 2, "lat": 37.87047, "lon": 32.50256}, {"id": "th-ucler", "slug": "ucler", "name": "Üçler Mezarlığı", "sub": "Tarihî mezarlık", "kind": "Mezarlık", "desc": "Mevlâna Müzesi’nin hemen güneyinde uzanan eski mezarlık. Patikaları ve ağaçlarıyla merkezdeki en geniş yeşil alanlardan biridir.", "x": 0.85335, "y": 0.94061, "rank": 2, "lat": 37.869, "lon": 32.5048}]};
+  const MPP = 0.11393229166666667;           // metre / harita pikseli (yatay)
+  const $ = (id) => document.getElementById(id);
+  const view = $('view'), stage = $('stage'), pinsEl = $('pins');
+  const W = DATA.w, H = DATA.h;
+
+  // --- görüntüler: altta düşük çözünürlüklü önizleme; üstünde sadece ekranda görünen 1024 px karolar
+  //     (telefon belleği dolmasın diye uzaklaşan karolar DOM'dan çıkarılır)
+  // Dev bir katmanı ölçeklemek yerine her görüntü kendi küçük dönüşümüyle ekrana yerleştirilir (iPhone bellek sınırı)
+  const LO_W = 2400, LO_H = Math.round(2400 * H / W);
+  const lo = new Image(); lo.src = 'lo.jpg'; Object.assign(lo.style, { width: LO_W + 'px', height: LO_H + 'px' }); lo.alt = '';
+  lo.onload = () => $('loading').classList.add('done');
+  stage.append(lo);
+  const T = DATA.tile, LEVELS = DATA.levels, live = new Map();
+  const place = (im) => { im.style.transform = `translate(${tx + im._x * s}px, ${ty + im._y * s}px) scale(${s * im._k})`; };
+  let tileTimer = 0;
+  const updateTiles = () => {
+    tileTimer = 0;
+    const px = s * window.devicePixelRatio;           // ekran pikseli / harita pikseli
+    const L = px >= 0.7 ? LEVELS[0] : px >= 0.22 ? LEVELS[1] : null;
+    const want = new Set();
+    if (L) {
+      const k = W / L.lw, m = 0.25;                   // karo başına harita pikseli ölçeği, kenar payı
+      const x0 = (-tx / s) / (T * k) - m, x1 = ((vw() - tx) / s) / (T * k) + m;
+      const y0 = (-ty / s) / (T * k) - m, y1 = ((vh() - ty) / s) / (T * k) + m;
+      for (let r = Math.max(0, Math.floor(y0)); r <= Math.min(L.rows - 1, Math.floor(y1)); r++)
+        for (let c = Math.max(0, Math.floor(x0)); c <= Math.min(L.cols - 1, Math.floor(x1)); c++) {
+          const key = `t${L.z}_${r}_${c}`; want.add(key);
+          if (live.has(key)) continue;
+          const im = new Image(); im.className = 'piece'; im.alt = ''; im.decoding = 'async';
+          const w = Math.min(T + 2, L.lw - c * T), h = Math.min(T + 2, L.lh - r * T);
+          Object.assign(im.style, { width: w + 'px', height: h + 'px', zIndex: 2 - L.z });
+          im._x = c * T * k; im._y = r * T * k; im._k = k; place(im);
+          im.onload = () => { im.classList.add('on'); scheduleTiles(); };
+          im.src = key + '.jpg'; stage.append(im); live.set(key, im);
+        }
+    }
+    // istenmeyenleri kaldır (seviye geçişinde yeni karolar yüklenene dek eskiler kısa süre kalır)
+    for (const [key, im] of live) if (!want.has(key)) {
+      const sameLevel = L && key.startsWith(`t${L.z}_`);
+      if (sameLevel || !L || [...want].every((k2) => live.get(k2)?.complete)) { im.remove(); live.delete(key); }
+    }
+  };
+  const scheduleTiles = () => { if (!tileTimer) tileTimer = setTimeout(updateTiles, 120); };
+
+  // --- ekran ↔ coğrafi (yer düzlemi doğrusal; yerlerden en küçük kareler afin uydurma)
+  const geo = (() => {
+    const P = DATA.places; const n = P.length;
+    const solve = (key) => { // [a,b,c] : v = a*x + b*y + c
+      let sxx = 0, sxy = 0, sx = 0, syy = 0, sy = 0, sxv = 0, syv = 0, sv = 0;
+      for (const p of P) { const x = p.x, y = p.y, v = p[key]; sxx += x * x; sxy += x * y; sx += x; syy += y * y; sy += y; sxv += x * v; syv += y * v; sv += v; }
+      const M = [[sxx, sxy, sx], [sxy, syy, sy], [sx, sy, n]], B = [sxv, syv, sv];
+      const det = (m) => m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+      const D = det(M);
+      return [0, 1, 2].map((i) => det(M.map((row, ri) => row.map((v, ci) => (ci === i ? B[ri] : v)))) / D);
+    };
+    const A = solve('lat'), Bn = solve('lon');
+    return (fx, fy) => [A[0] * fx + A[1] * fy + A[2], Bn[0] * fx + Bn[1] * fy + Bn[2]];
+  })();
+  const fmt = (v, d) => v.toFixed(4) + '° ' + d;
+
+  // --- kamera: gösterilen (s,tx,ty) hedefe (S,TX,TY) yumuşakça yaklaşır
+  let s = 1, tx = 0, ty = 0, S = 1, TX = 0, TY = 0, vx = 0, vy = 0, raf = 0, dragging = false, fly = null;
+  const vw = () => view.clientWidth, vh = () => view.clientHeight;
+  const minS = () => Math.min(vw() / W, vh() / H) * 0.95;
+  const MAX_S = 2;
+  const clamp = () => {
+    S = Math.min(MAX_S, Math.max(minS(), S));
+    const mw = W * S, mh = H * S, pad = 40, open = document.body.classList.contains('has-panel'), phone = matchMedia('(max-width: 760px)').matches;
+    // panel açıkken haritanın kenarındaki yerler de panelin dışına gelebilsin
+    const padR = open && !phone ? 400 : pad, padB = open && phone ? document.getElementById('panel').offsetHeight + 20 : pad;
+    TX = mw + pad * 2 <= vw() ? (vw() - mw) / 2 : Math.min(pad, Math.max(vw() - mw - padR, TX));
+    TY = mh + pad * 2 <= vh() ? (vh() - mh) / 2 : Math.min(pad, Math.max(vh() - mh - padB, TY));
+  };
+  const pins = DATA.places.map((p) => {
+    const el = document.createElement('button');
+    el.type = 'button'; el.className = 'pin r' + p.rank; el.setAttribute('aria-label', p.name);
+    el.innerHTML = `<b></b><i></i><u></u>`; el.querySelector('b').textContent = p.name;
+    el.onclick = (e) => { e.stopPropagation(); openPlace(p); };
+    el.addEventListener('pointerdown', (e) => e.stopPropagation());
+    pinsEl.append(el); return { p, el };
+  });
+  const niceScale = () => {
+    const target = 110 / (s / MPP);                 // ~110 px kaç metre
+    const steps = [10, 20, 25, 50, 100, 200, 250, 500, 1000];
+    const m = steps.find((v) => v >= target * 0.6) || 1000;
+    $('scaleTxt').textContent = m >= 1000 ? m / 1000 + ' km' : m + ' m';
+    $('scaleBar').style.width = Math.round(m * s / MPP) + 'px';
+  };
+  const render = () => {
+    lo.style.transform = `translate(${tx}px, ${ty}px) scale(${s * W / LO_W})`;
+    for (const im of live.values()) place(im);
+    const show2 = s > 0.22;
+    for (const { p, el } of pins) {
+      el.style.transform = `translate3d(${tx + p.x * W * s}px, ${ty + p.y * H * s}px, 0) translate(-50%, -100%)`;
+      el.dataset.hide = p.rank === 2 && !show2 ? '1' : '0';
+    }
+    const [la, lo2] = geo((vw() / 2 - tx) / (W * s), (vh() / 2 - ty) / (H * s));
+    $('coord').textContent = `${fmt(la, 'K')} · ${fmt(lo2, 'D')} · 1.016 m`;
+    const vp = $('vp'), mw = $('mini').clientWidth, mh = mw * H / W;
+    const x0 = Math.max(0, -tx / (W * s)), y0 = Math.max(0, -ty / (H * s));
+    const x1 = Math.min(1, (vw() - tx) / (W * s)), y1 = Math.min(1, (vh() - ty) / (H * s));
+    Object.assign(vp.style, { left: x0 * mw + 'px', top: y0 * mh + 'px', width: (x1 - x0) * mw + 'px', height: (y1 - y0) * mh + 'px' });
+    niceScale();
+    scheduleTiles();
+  };
+  const tick = () => {
+    if (fly) { // zaman bazlı uçuş (ease-in-out)
+      const t = Math.min(1, (performance.now() - fly.t0) / fly.dur), e = t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      const ls = Math.exp(Math.log(fly.s0) + (Math.log(fly.s1) - Math.log(fly.s0)) * e);
+      const cx = fly.c0[0] + (fly.c1[0] - fly.c0[0]) * e, cy = fly.c0[1] + (fly.c1[1] - fly.c0[1]) * e;
+      S = s = ls; TX = tx = vw() / 2 - cx * W * ls; TY = ty = vh() / 2 - cy * H * ls;
+      if (t >= 1) { fly = null; clamp(); }
+      render(); raf = requestAnimationFrame(tick); return;
+    }
+    if (!dragging && (Math.abs(vx) > 0.1 || Math.abs(vy) > 0.1)) { TX += vx; TY += vy; vx *= 0.93; vy *= 0.93; }
+    clamp();
+    const k = 0.2; s += (S - s) * k; tx += (TX - tx) * k; ty += (TY - ty) * k;
+    const settled = !dragging && Math.abs(S - s) < 1e-4 * S && Math.abs(TX - tx) < 0.3 && Math.abs(TY - ty) < 0.3 && Math.abs(vx) <= 0.1 && Math.abs(vy) <= 0.1;
+    if (settled) { s = S; tx = TX; ty = TY; }
+    render(); raf = settled ? 0 : requestAnimationFrame(tick);
+  };
+  const kick = () => { if (!raf) raf = requestAnimationFrame(tick); };
+  const snap = () => { clamp(); s = S; tx = TX; ty = TY; render(); };
+  const zoomAt = (f, cx, cy) => {
+    fly = null;
+    const ns = Math.min(MAX_S, Math.max(minS(), S * f));
+    TX = cx - (cx - TX) * (ns / S); TY = cy - (cy - TY) * (ns / S); S = ns; kick();
+  };
+  const centerFrac = () => [(vw() / 2 - tx) / (W * s), (vh() / 2 - ty) / (H * s)];
+  const flyTo = (p, scale = 0.75, ox = 0, oy = 0) => {
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const s1 = Math.max(minS(), Math.min(MAX_S, scale));
+    fly = { t0: performance.now(), dur: reduce ? 1 : 1100, s0: s, s1, c0: centerFrac(), c1: [p.x + ox / (W * s1), p.y + oy / (H * s1)] };
+    vx = vy = 0; setActive(p); kick();
+  };
+  const C = () => [vw() / 2, vh() / 2];
+  const local = (e) => { const r = view.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+
+  view.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    if (e.ctrlKey) zoomAt(Math.exp(-e.deltaY * 0.012), ...local(e));
+    else if (e.deltaX !== 0) { fly = null; TX -= e.deltaX; TY -= e.deltaY; kick(); }
+    else zoomAt(Math.exp(-e.deltaY * 0.0022), ...local(e));
+  }, { passive: false });
+  const pts = new Map(); let lastD = null, lastT = 0, lastTap = 0;
+  view.addEventListener('pointerdown', (e) => {
+    view.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]);
+    dragging = true; fly = null; vx = vy = 0; lastD = null; lastT = performance.now(); view.classList.add('drag');
+    hideResults();
+    if (e.pointerType !== 'mouse' && pts.size === 1) { const now = performance.now(); if (now - lastTap < 300) zoomAt(2, ...local(e)); lastTap = now; }
+  });
+  view.addEventListener('pointermove', (e) => {
+    if (!pts.has(e.pointerId)) return;
+    const prev = pts.get(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pts.size === 1) {
+      const dx = e.clientX - prev[0], dy = e.clientY - prev[1];
+      TX += dx; TY += dy; tx += dx; ty += dy;
+      const now = performance.now(), dt = Math.max(1, now - lastT); lastT = now;
+      vx = vx * 0.5 + (dx * 16 / dt) * 0.5; vy = vy * 0.5 + (dy * 16 / dt) * 0.5; kick();
+    } else if (pts.size === 2) {
+      const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]), r = view.getBoundingClientRect();
+      if (lastD) zoomAt(d / lastD, (a[0] + b[0]) / 2 - r.left, (a[1] + b[1]) / 2 - r.top);
+      lastD = d; vx = vy = 0;
+    }
+  });
+  const end = (e) => {
+    pts.delete(e.pointerId); lastD = null;
+    if (!pts.size) { dragging = false; view.classList.remove('drag'); if (performance.now() - lastT > 80) vx = vy = 0; kick(); }
+  };
+  view.addEventListener('pointerup', end); view.addEventListener('pointercancel', end);
+  view.addEventListener('dblclick', (e) => zoomAt(e.shiftKey ? 0.5 : 2, ...local(e)));
+  addEventListener('keydown', (e) => {
+    if (e.target === $('q')) return;
+    const m = { ArrowLeft: [150, 0], ArrowRight: [-150, 0], ArrowUp: [0, 150], ArrowDown: [0, -150] }[e.key];
+    if (m) { fly = null; TX += m[0]; TY += m[1]; kick(); e.preventDefault(); }
+    else if (e.key === '+' || e.key === '=') zoomAt(1.5, ...C());
+    else if (e.key === '-') zoomAt(1 / 1.5, ...C());
+    else if (e.key === '0') { S = minS(); kick(); }
+    else if (e.key === 'Escape') { if (!$('share').hidden) closeShare(); else if (!$('about').hidden) $('about').hidden = true; else closePanel(); }
+  });
+  $('zin').onclick = () => zoomAt(1.6, ...C());
+  $('zout').onclick = () => zoomAt(1 / 1.6, ...C());
+  $('fit').onclick = () => { fly = null; closePanel(); S = minS(); kick(); setActive(null); };
+
+  // --- mini harita
+  $('mini').addEventListener('click', (e) => {
+    const r = $('mini').getBoundingClientRect();
+    flyTo({ x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height }, Math.max(s, 0.35));
+  });
+
+  // --- yer kartları
+  const cards = DATA.places.map((p) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'card'; b.setAttribute('role', 'listitem');
+    b.innerHTML = `<img alt="" loading="lazy"><span></span>`;
+    b.querySelector('img').src = p.id + '.jpg'; b.querySelector('span').textContent = p.name; b.title = p.sub;
+    b.onclick = () => openPlace(p);
+    $('cards').append(b); return b;
+  });
+  const setActive = (p) => {
+    DATA.places.forEach((q, i) => { const on = q === p; cards[i].classList.toggle('active', on); pins[i].el.classList.toggle('active', on); if (on) cards[i].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); });
+  };
+  $('prev').onclick = () => $('cards').scrollBy({ left: -300, behavior: 'smooth' });
+  $('next').onclick = () => $('cards').scrollBy({ left: 300, behavior: 'smooth' });
+
+  // --- arama
+  const norm = (t) => t.toLocaleLowerCase('tr').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ı/g, 'i');
+  const results = $('results'); let sel = 0, hits = [];
+  const hideResults = () => { results.hidden = true; };
+  const showResults = () => {
+    const q = norm($('q').value.trim());
+    hits = q ? DATA.places.filter((p) => norm(p.name + ' ' + p.sub).includes(q)) : DATA.places.filter((p) => p.rank === 1);
+    results.innerHTML = '';
+    if (!hits.length) { const li = document.createElement('li'); li.innerHTML = '<button type="button" disabled>Bu adla bir yer yok, başka bir ad deneyin</button>'; results.append(li); }
+    hits.forEach((p, i) => {
+      const li = document.createElement('li'), b = document.createElement('button');
+      b.type = 'button'; b.className = i === sel ? 'sel' : ''; b.innerHTML = '<span></span><small></small>';
+      b.querySelector('span').textContent = p.name; b.querySelector('small').textContent = p.sub;
+      b.onclick = () => { openPlace(p); $('q').value = p.name; hideResults(); };
+      li.append(b); results.append(li);
+    });
+    results.hidden = false;
+  };
+  $('q').addEventListener('focus', () => { sel = 0; showResults(); });
+  $('q').addEventListener('input', () => { sel = 0; showResults(); });
+  $('q').addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { sel = Math.min(hits.length - 1, sel + 1); showResults(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { sel = Math.max(0, sel - 1); showResults(); e.preventDefault(); }
+    else if (e.key === 'Enter' && hits[sel]) { openPlace(hits[sel]); $('q').value = hits[sel].name; hideResults(); $('q').blur(); }
+    else if (e.key === 'Escape') { hideResults(); $('q').blur(); }
+  });
+  document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.search')) hideResults(); });
+
+
+  // --- yer paneli + bağlantıyla açılış (#yer-mevlana, #g-x-y-g)
+  const LINK = 'https://mtuyar.github.io/isometrickonya/';
+  const isPhone = () => matchMedia('(max-width: 760px)').matches;
+  let current = null;
+  const setHash = (h) => { try { if (location.hash.slice(1) !== h) location.hash = h; } catch (_) {} };
+  const showPanel = (p) => {
+    current = p; document.body.classList.add('has-panel');
+    $('pImg').src = p.id + '.jpg'; $('pKind').textContent = p.kind; $('pName').textContent = p.name; $('pSub').textContent = p.sub; $('pDesc').textContent = p.desc;
+    $('panel').hidden = false; $('panel').scrollTop = 0;
+  };
+  function closePanel() {
+    if ($('panel').hidden) return;
+    $('panel').hidden = true; document.body.classList.remove('has-panel'); current = null; setActive(null); setHash('');
+  }
+  function openPlace(p) {
+    showPanel(p); setHash('yer-' + p.slug);
+    // hedef, panelin kapatmadığı alanın ortasına gelsin
+    const scale = Math.max(s, 0.75);
+    if (isPhone()) flyTo(p, scale, 0, $('panel').offsetHeight / 2 - 30);
+    else flyTo(p, scale, 190, 0);
+  }
+  const step = (d) => { const P = DATA.places, i = P.indexOf(current); openPlace(P[(i + d + P.length) % P.length]); };
+  $('pClose').onclick = closePanel;
+  $('pPrev').onclick = () => step(-1);
+  $('pNext').onclick = () => step(1);
+  const route = () => {
+    const h = location.hash.slice(1);
+    if (h.startsWith('yer-')) { const p = DATA.places.find((q) => q.slug === h.slice(4)); if (p && p !== current) openPlace(p); return; }
+    const m = h.match(/^g-(\d+)-(\d+)-(\d+)$/);
+    if (m) { const sc = Math.max(minS(), Math.min(MAX_S, +m[3] / 100)); flyTo({ x: +m[1] / W, y: +m[2] / H }, sc); return; }
+    if (!h && current) closePanel();
+  };
+  addEventListener('hashchange', route);
+
+  // --- paylaşım kartları: haritadan kesit + yazı, tuval üzerinde
+  const tileCache = new Map();
+  const tile = (key) => { if (!tileCache.has(key)) tileCache.set(key, new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = no; im.src = key + '.jpg'; })); return tileCache.get(key); };
+  const crop = async (cx, cy, sw, sh, ow, oh) => {   // harita pikseli merkez + boyut → ow×oh tuval
+    const f = Math.min(W / sw, H / sh, 1); sw *= f; sh *= f;
+    const x0 = Math.max(0, Math.min(W - sw, cx - sw / 2)), y0 = Math.max(0, Math.min(H - sh, cy - sh / 2));
+    const L = sw / ow > 1.6 ? LEVELS[1] : LEVELS[0], k = W / L.lw, q = ow / sw;
+    const c = document.createElement('canvas'); c.width = ow; c.height = oh; const g = c.getContext('2d'); g.imageSmoothingQuality = 'high';
+    const jobs = [];
+    for (let r = Math.floor(y0 / (T * k)); r <= Math.min(L.rows - 1, Math.floor((y0 + sh) / (T * k))); r++)
+      for (let cc = Math.floor(x0 / (T * k)); cc <= Math.min(L.cols - 1, Math.floor((x0 + sw) / (T * k))); cc++)
+        jobs.push(tile(`t${L.z}_${r}_${cc}`).then((im) => g.drawImage(im, (cc * T * k - x0) * q, (r * T * k - y0) * q, im.naturalWidth * k * q, im.naturalHeight * k * q)));
+    await Promise.all(jobs); return c;
+  };
+  const SERIF = '"Instrument Serif", Georgia, serif', SANS = 'Figtree, system-ui, sans-serif', BRAND = 'Konya merkez';
+  const fit = (g, text, weight, size, fam, max) => { let z = size; do { g.font = `${weight} ${z}px ${fam}`; z -= 2; } while (g.measureText(text).width > max && z > 20); };
+  const CARDS = {
+    postcard: { w: 1500, h: 1000, async draw(g, t) {
+      const W2 = 1500, H2 = 1000, m = 44; g.fillStyle = '#f5efe3'; g.fillRect(0, 0, W2, H2);
+      const iw = W2 - 2 * m, ih = H2 - m - 170; g.drawImage(await crop(t.cx, t.cy, iw * t.q, ih * t.q, iw, ih), m, m);
+      g.textBaseline = 'alphabetic'; g.fillStyle = '#1b2422'; fit(g, t.name, 400, 78, SERIF, 1000); g.fillText(t.name, m, H2 - 76);
+      g.fillStyle = '#55605d'; g.font = `400 30px ${SANS}`; g.fillText(t.sub, m, H2 - 34);
+      g.textAlign = 'right'; g.fillStyle = '#12877c'; g.font = `600 30px ${SANS}`; g.fillText(BRAND, W2 - m, H2 - 34); g.textAlign = 'left';
+    } },
+    story: { w: 1080, h: 1920, async draw(g, t) {
+      g.drawImage(await crop(t.cx, t.cy, 1080 * t.q, 1920 * t.q, 1080, 1920), 0, 0);
+      const gr = g.createLinearGradient(0, 1200, 0, 1920); gr.addColorStop(0, 'rgba(10,16,15,0)'); gr.addColorStop(1, 'rgba(10,16,15,.82)'); g.fillStyle = gr; g.fillRect(0, 1200, 1080, 720);
+      g.textAlign = 'center'; g.fillStyle = '#fff'; fit(g, t.name, 400, 104, SERIF, 960); g.fillText(t.name, 540, 1680);
+      g.font = `400 38px ${SANS}`; g.fillStyle = 'rgba(255,255,255,.88)'; g.fillText(t.sub, 540, 1744);
+      g.font = `600 30px ${SANS}`; g.fillStyle = 'rgba(255,255,255,.75)'; g.fillText(BRAND, 540, 1836); g.textAlign = 'left';
+    } },
+    photo: { w: 1600, h: 1000, async draw(g, t) {
+      g.drawImage(await crop(t.cx, t.cy, 1600 * t.q, 1000 * t.q, 1600, 1000), 0, 0);
+      const label = `${t.name} · ${BRAND}`; g.font = `600 28px ${SANS}`; const lw = g.measureText(label).width + 40;
+      g.fillStyle = 'rgba(255,255,255,.92)'; g.beginPath(); g.roundRect(32, 1000 - 32 - 56, lw, 56, 28); g.fill();
+      g.fillStyle = '#1b2422'; g.textBaseline = 'middle'; g.fillText(label, 52, 1000 - 60); g.textBaseline = 'alphabetic';
+    } },
+    stamp: { w: 1080, h: 1350, async draw(g, t) {
+      // arka plan: aynı kesitin çok küçültülüp büyütülmüş, karartılmış hâli
+      const small = await crop(t.cx, t.cy, 1080 * t.q * 1.4, 1350 * t.q * 1.4, 54, 68);
+      g.imageSmoothingQuality = 'high'; g.drawImage(small, 0, 0, 1080, 1350); g.fillStyle = 'rgba(20,24,22,.35)'; g.fillRect(0, 0, 1080, 1350);
+      const sx = 100, sy = 110, sw = 880, sh = 1130, r = 14, gap = 44;
+      const c = document.createElement('canvas'); c.width = sw; c.height = sh; const k = c.getContext('2d');
+      k.fillStyle = '#f5efe3'; k.fillRect(0, 0, sw, sh); k.globalCompositeOperation = 'destination-out';
+      const nx = Math.round(sw / gap), ny = Math.round(sh / gap);
+      for (let i = 0; i <= nx; i++) for (const y of [0, sh]) { k.beginPath(); k.arc(i * sw / nx, y, r, 0, 7); k.fill(); }
+      for (let i = 0; i <= ny; i++) for (const x of [0, sw]) { k.beginPath(); k.arc(x, i * sh / ny, r, 0, 7); k.fill(); }
+      k.globalCompositeOperation = 'source-over';
+      const iw = sw - 112, ih = 800; k.drawImage(await crop(t.cx, t.cy, iw * t.q, ih * t.q, iw, ih), 56, 56);
+      k.fillStyle = '#1b2422'; fit(k, t.name, 400, 76, SERIF, iw); k.fillText(t.name, 56, 56 + ih + 92);
+      k.fillStyle = '#55605d'; k.font = `400 32px ${SANS}`; k.fillText(t.sub, 56, 56 + ih + 144);
+      k.fillStyle = '#12877c'; k.font = `600 28px ${SANS}`; k.fillText(BRAND, 56, 56 + ih + 196);
+      g.shadowColor = 'rgba(0,0,0,.35)'; g.shadowBlur = 40; g.shadowOffsetY = 14; g.drawImage(c, sx, sy); g.shadowColor = 'transparent';
+    } },
+  };
+  let target = null, kind = 'postcard', blob = null, blobUrl = null, job = 0, downloads = null;
+  const makeCard = async () => {
+    const my = ++job, C2 = CARDS[kind]; blob = null;
+    $('prev2').hidden = true; $('prevBusy').hidden = false; $('prevBusy').textContent = 'Kart hazırlanıyor…'; $('shareMsg').textContent = '';
+    $('share').querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.k === kind)));
+    try {
+      try { await Promise.all([document.fonts.load(`400 40px "Instrument Serif"`), document.fonts.load(`600 30px Figtree`), document.fonts.load(`400 30px Figtree`)]); } catch (_) {}
+      const c = document.createElement('canvas'); c.width = C2.w; c.height = C2.h;
+      await C2.draw(c.getContext('2d'), target);
+      const b = await new Promise((ok) => c.toBlob(ok, 'image/jpeg', 0.92));
+      if (my !== job) return;
+      blob = b; if (blobUrl) URL.revokeObjectURL(blobUrl); blobUrl = URL.createObjectURL(b);
+      $('prev2').src = blobUrl; $('prev2').hidden = false; $('prevBusy').hidden = true;
+      
+    } catch (_) { if (my === job) $('prevBusy').textContent = 'Kart hazırlanamadı, başka bir biçim dene.'; }
+  };
+  const openShare = (t) => {
+    target = t; const url = LINK + '#' + t.hash, text = `${t.name} · Konya merkez haritası`;
+    $('sWa').href = 'https://wa.me/?text=' + encodeURIComponent(text + ' ' + url);
+    $('sX').href = 'https://x.com/intent/post?text=' + encodeURIComponent(text) + '&url=' + encodeURIComponent(url);
+    $('sTg').href = 'https://t.me/share/url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent(text);
+    $('shareLink').value = url; $('shareLink').hidden = true;
+    $('share').hidden = false; $('sClose').focus(); makeCard();
+  };
+  function closeShare() { $('share').hidden = true; job++; }
+  $('sClose').onclick = closeShare;
+  $('share').addEventListener('click', (e) => { if (e.target === $('share')) closeShare(); });
+  $('share').querySelectorAll('.tabs button').forEach((b) => { b.onclick = () => { kind = b.dataset.k; makeCard(); }; });
+  $('pShare').onclick = () => { const p = current; openShare({ name: p.name, sub: p.sub, cx: p.x * W, cy: p.y * H, q: 0.9, hash: 'yer-' + p.slug, file: p.slug }); };
+  $('shareView').onclick = () => {
+    if (current) return $('pShare').onclick();
+    const [fx, fy] = centerFrac(), cx = Math.round(fx * W), cy = Math.round(fy * H);
+    let best = DATA.places[0], d = 1e18; for (const p of DATA.places) { const v = (p.x * W - cx) ** 2 + (p.y * H - cy) ** 2; if (v < d) { d = v; best = p; } }
+    const q = Math.max(0.6, Math.min(4, 1 / s * 0.9));
+    openShare({ name: 'Konya', sub: Math.sqrt(d) < 900 ? best.name + ' çevresi' : 'Tarihî merkez', cx, cy, q, hash: `g-${cx}-${cy}-${Math.round(s * 100)}`, file: 'gorunum' });
+  };
+  $('sCopy').onclick = async () => {
+    try { await navigator.clipboard.writeText($('shareLink').value); $('shareMsg').textContent = 'Bağlantı kopyalandı.'; }
+    catch (_) { $('shareLink').hidden = false; $('shareLink').select(); $('shareMsg').textContent = 'Bağlantıyı seçip kopyalayabilirsin.'; }
+  };
+  $('sSave').onclick = async () => {
+    if (!blob) return;
+    if (!downloads) { const a = document.createElement('a'); a.href = blobUrl; a.download = `konya-${target.file}-${kind}.jpg`; document.body.append(a); a.click(); a.remove(); $('shareMsg').textContent = 'Kart indirildi.'; return; }
+    try { await downloads.save({ filename: `konya-${target.file}-${kind}.jpg`, data: blob }); $('shareMsg').textContent = 'Kart kaydedildi.'; }
+    catch (e) { $('shareMsg').textContent = e && e.code === 'declined' ? '' : 'Kaydedilemedi; görsele basılı tutarak da alabilirsin.'; if (e && ['unavailable', 'not_granted', 'capability_disabled', 'capability_removed'].includes(e.code)) $('sSave').hidden = true; }
+  };
+  $('sSave').hidden = false;
+
+  // --- bilgi
+  $('info').onclick = () => { $('about').hidden = false; $('closeAbout').focus(); };
+  $('closeAbout').onclick = () => { $('about').hidden = true; };
+  $('about').addEventListener('click', (e) => { if (e.target === $('about')) $('about').hidden = true; });
+
+  // --- açılış: ekranı dolduran ölçek, haritanın ortası
+  const opening = () => {
+    S = Math.max(vw() / W, vh() / H) * 1.25; const c = [0.55, 0.55];
+    TX = vw() / 2 - c[0] * W * S; TY = vh() / 2 - c[1] * H * S; snap();
+  };
+  addEventListener('resize', snap);
+  opening();
+  route();
+</script>
+</html>
