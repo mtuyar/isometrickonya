@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Konya Merkez Fotoğraf</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: harita tüm ekranı kaplar; üstte marka + arama, altta yer kartları şeridi, sağ altta mini harita, sağda zoom */
+  :root {
+    --ground: #e9e5dc;         /* harita çevresi */
+    --glass: rgba(255, 255, 255, .78);
+    --glass-strong: rgba(255, 255, 255, .94);
+    --ink: #1b2422;
+    --ink-soft: #55605d;
+    --hair: rgba(27, 36, 34, .12);
+    --turquoise: #12877c;      /* Mevlâna kubbesinin rengi */
+    --turquoise-soft: rgba(18, 135, 124, .14);
+    --pin: #ffffff;
+    --shadow: 0 10px 30px rgba(20, 30, 28, .18), 0 1px 2px rgba(20, 30, 28, .12);
+    --display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+    --body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --gl: max(16px, env(safe-area-inset-left, 0px));
+    --gr: max(16px, env(safe-area-inset-right, 0px));
+    --gt: max(14px, env(safe-area-inset-top, 0px));
+    --gb: max(14px, env(safe-area-inset-bottom, 0px));
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --ground: #171c1d; --glass: rgba(22, 28, 29, .76); --glass-strong: rgba(26, 33, 34, .95); --ink: #eef1ec; --ink-soft: #a3aea9;
+    --hair: rgba(238, 241, 236, .14); --turquoise: #3cc2b4; --turquoise-soft: rgba(60, 194, 180, .18); --pin: #1b2422;
+    --shadow: 0 10px 30px rgba(0, 0, 0, .45), 0 1px 2px rgba(0, 0, 0, .4); color-scheme: dark } }
+  :root[data-theme="dark"] {
+    --ground: #171c1d; --glass: rgba(22, 28, 29, .76); --glass-strong: rgba(26, 33, 34, .95); --ink: #eef1ec; --ink-soft: #a3aea9;
+    --hair: rgba(238, 241, 236, .14); --turquoise: #3cc2b4; --turquoise-soft: rgba(60, 194, 180, .18); --pin: #1b2422;
+    --shadow: 0 10px 30px rgba(0, 0, 0, .45), 0 1px 2px rgba(0, 0, 0, .4); color-scheme: dark }
+
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font: 14px/1.4 var(--body); overflow: hidden; -webkit-font-smoothing: antialiased; }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--turquoise); outline-offset: 2px; }
+
+  #view { position: fixed; inset: 0; overflow: hidden; cursor: grab; touch-action: none; }
+  #view.drag { cursor: grabbing; }
+  #stage { position: absolute; inset: 0; overflow: hidden; z-index: 0; }
+  #pins { z-index: 1; }
+  #stage img { position: absolute; left: 0; top: 0; display: block; transform-origin: 0 0; user-select: none; -webkit-user-drag: none; pointer-events: none; max-width: none; }
+  #stage .piece { opacity: 0; transition: opacity .5s ease; }
+  #stage .piece.on { opacity: 1; }
+  #pins { position: absolute; inset: 0; pointer-events: none; }
+  .pin { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; pointer-events: auto; cursor: pointer;
+    transition: opacity .25s ease; background: none; border: 0; padding: 0; }
+  .pin[data-hide="1"] { opacity: 0; pointer-events: none; }
+  .pin b { font: 600 12px/1 var(--body); letter-spacing: .01em; white-space: nowrap; color: var(--ink); background: var(--glass-strong);
+    padding: 6px 10px; border-radius: 999px; box-shadow: var(--shadow); }
+  .pin i { width: 2px; height: 14px; background: var(--glass-strong); box-shadow: var(--shadow); }
+  .pin u { width: 9px; height: 9px; border-radius: 50%; background: var(--turquoise); border: 2px solid var(--pin); box-shadow: var(--shadow); margin-top: -1px; }
+  .pin.r2 b { font-weight: 500; font-size: 11px; padding: 5px 9px; }
+  .pin:hover b, .pin.active b { background: var(--turquoise); color: #fff; }
+
+  .glass { background: var(--glass); backdrop-filter: blur(14px) saturate(1.3); -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    border: 1px solid var(--hair); box-shadow: var(--shadow); }
+
+  /* üst bar */
+  #top { position: fixed; top: var(--gt); left: var(--gl); right: var(--gr); display: flex; gap: 10px; align-items: flex-start; pointer-events: none; z-index: 5; }
+  #top > * { pointer-events: auto; }
+  .brand { border-radius: 16px; padding: 8px 16px 9px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .brand h1 { margin: 0; font: 400 30px/1 var(--display); letter-spacing: -.01em; }
+  .brand h1 em { color: var(--turquoise); }
+  .brand .coord { font: 11px var(--mono); color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .search { margin-left: auto; position: relative; width: min(320px, 40vw); }
+  .search input { width: 100%; box-sizing: border-box; height: 44px; border-radius: 14px; padding: 0 14px 0 38px; border: 1px solid var(--hair);
+    background: var(--glass); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: var(--shadow); outline: none; }
+  .search input::placeholder { color: var(--ink-soft); }
+  .search input:focus { border-color: var(--turquoise); }
+  .search svg { position: absolute; left: 13px; top: 14px; width: 16px; height: 16px; stroke: var(--ink-soft); fill: none; stroke-width: 2; }
+  #results { position: absolute; top: 50px; left: 0; right: 0; border-radius: 14px; overflow: hidden; padding: 4px; margin: 0; list-style: none; }
+  #results li button { width: 100%; text-align: left; border: 0; background: none; padding: 8px 10px; border-radius: 10px; display: flex; justify-content: space-between; gap: 8px; }
+  #results li button:hover, #results li button.sel { background: var(--turquoise-soft); }
+  #results small { color: var(--ink-soft); font-size: 12px; }
+  .iconbtn { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; border: 1px solid var(--hair); }
+  .iconbtn svg { width: 18px; height: 18px; stroke: var(--ink); fill: none; stroke-width: 1.8; }
+
+  /* sağ: zoom + pusula */
+  #side { position: fixed; right: var(--gr); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 10px; z-index: 4; }
+  .zoom { border-radius: 14px; display: flex; flex-direction: column; overflow: hidden; }
+  .zoom button { width: 44px; height: 44px; border: 0; background: none; font-size: 20px; line-height: 1; }
+  .zoom button + button { border-top: 1px solid var(--hair); }
+  .zoom button:hover { background: var(--turquoise-soft); }
+  .compass { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; }
+  .compass svg { width: 26px; height: 26px; transform: rotate(-20deg); }
+
+  /* alt: yer kartları */
+  #dock { position: fixed; left: 50%; transform: translateX(-50%); bottom: var(--gb); z-index: 4; display: flex; align-items: center; gap: 8px;
+    max-width: calc(100% - 2 * (var(--gr) + 206px)); }
+  #cards { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 6px; border-radius: 18px; scrollbar-width: none; }
+  #cards::-webkit-scrollbar { display: none; }
+  .card { flex: none; width: 132px; height: 92px; border-radius: 12px; position: relative; overflow: hidden; border: 0; padding: 0; scroll-snap-align: start;
+    background: var(--hair); transition: transform .2s ease; }
+  .card img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .4s ease; }
+  .card:hover img { transform: scale(1.06); }
+  .card span { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 8px 7px; text-align: left; color: #fff; font: 600 12px/1.15 var(--body);
+    background: linear-gradient(transparent, rgba(0, 0, 0, .68)); }
+  .card.active { outline: 2px solid var(--turquoise); outline-offset: 0; }
+  .arrow { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--hair); flex: none; }
+  .arrow svg { width: 16px; height: 16px; stroke: var(--ink); fill: none; stroke-width: 2; }
+
+  /* sağ alt: mini harita + ölçek */
+  #mini { position: fixed; right: var(--gr); bottom: var(--gb); width: 190px; border-radius: 14px; overflow: hidden; z-index: 4; cursor: pointer; padding: 0; }
+  #mini img { display: block; width: 100%; height: auto; }
+  #mini .vp { position: absolute; border: 2px solid var(--turquoise); background: var(--turquoise-soft); border-radius: 3px; pointer-events: none; }
+  #scale { position: fixed; left: var(--gl); bottom: var(--gb); z-index: 4; border-radius: 10px; padding: 6px 10px 7px; font: 11px var(--mono); color: var(--ink-soft); }
+  #scale .bar { height: 5px; border: 1.5px solid var(--ink); border-top: 0; margin-top: 3px; }
+
+  /* bilgi paneli */
+  #about { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; background: rgba(10, 16, 15, .35); padding-left: var(--gl); padding-right: var(--gr); }
+  #about .box { max-width: 440px; border-radius: 20px; padding: 22px 24px; background: var(--glass-strong); }
+  #about h2 { margin: 0 0 6px; font: 400 32px/1.05 var(--display); text-wrap: balance; }
+  #about p { margin: 8px 0; color: var(--ink-soft); line-height: 1.55; }
+  #about dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 14px 0 18px; font-size: 13px; }
+  #about dt { color: var(--ink-soft); }
+  #about dd { margin: 0; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+  #about .close { border: 0; background: var(--ink); color: var(--ground); padding: 10px 18px; border-radius: 12px; font-weight: 600; }
+
+  #loading { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 10px 16px; border-radius: 12px; font-size: 12px; color: var(--ink-soft);
+    z-index: 3; transition: opacity .5s; pointer-events: none; }
+  #loading.done { opacity: 0; }
+
+  @media (max-width: 760px) {
+    .brand h1 { font-size: 24px; }
+    .brand .coord { display: none; }
+    .search { width: auto; flex: 1; min-width: 0; margin-left: 0; }
+    #mini, .arrow, #side .compass { display: none; }
+    #dock { left: var(--gl); right: var(--gr); transform: none; max-width: none; bottom: calc(var(--gb) + 40px); }
+    #cards { width: 100%; }
+    .card { width: 112px; height: 80px; }
+    #side { top: auto; bottom: calc(var(--gb) + 150px); transform: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  .modes { display: flex; gap: 2px; padding: 3px; border-radius: 12px; background: var(--glass); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid var(--hair); box-shadow: var(--shadow); align-self: flex-start; }
+  .modes a { font: 500 13px var(--body); color: var(--ink); text-decoration: none; padding: 9px 12px; border-radius: 9px; white-space: nowrap; }
+  .modes a:hover { background: var(--turquoise-soft); }
+  .modes a[aria-current="page"] { background: var(--turquoise); color: #fff; }
+  @media (max-width: 760px) { #top { flex-wrap: wrap; } .modes { order: 5; width: 100%; } .modes a { flex: 1; text-align: center; padding: 8px 4px; } }
+</style>
+
+<div id="view">
+  <div id="stage"></div>
+  <div id="pins"></div>
+</div>
+
+<header id="top">
+  <div class="brand glass">
+    <h1>Konya <em>merkez</em></h1>
+    <span class="coord" id="coord">37.8716° K · 32.4990° D · 1.016 m</span>
+  </div>
+  <nav class="modes" aria-label="Mod"><a href="../">Maket</a><a href="../foto/" aria-current="page">Fotoğraf</a><a href="../gunluk/">Gelişim</a><a href="../stil/">Stiller</a></nav>
+  <div class="search">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="q" type="search" placeholder="Bir yer arayın" autocomplete="off" aria-label="Yer ara">
+    <ul id="results" class="glass" hidden></ul>
+  </div>
+  <button class="iconbtn glass" id="info" type="button" aria-label="Harita hakkında">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>
+  </button>
+</header>
+
+<div id="side">
+  <div class="zoom glass">
+    <button id="zin" type="button" aria-label="Yakınlaş">+</button>
+    <button id="zout" type="button" aria-label="Uzaklaş">−</button>
+    <button id="fit" type="button" aria-label="Tümünü göster" title="Tümünü göster">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+    </button>
+  </div>
+  <div class="compass glass" title="Kuzey">
+    <svg viewBox="0 0 26 26"><path d="M13 2 17 13h-8z" fill="#d6453a"/><path d="M13 24 9 13h8z" fill="var(--ink-soft)"/></svg>
+  </div>
+</div>
+
+<div id="dock">
+  <button class="arrow glass" id="prev" type="button" aria-label="Önceki yerler"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></button>
+  <div id="cards" class="glass" role="list"></div>
+  <button class="arrow glass" id="next" type="button" aria-label="Sonraki yerler"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></button>
+</div>
+
+<button id="mini" class="glass" type="button" aria-label="Mini harita: tıklanan yere git"><img src="mini.jpg" alt=""><div class="vp" id="vp"></div></button>
+<div id="scale" class="glass"><span id="scaleTxt">100 m</span><div class="bar" id="scaleBar" style="width:80px"></div></div>
+<div id="loading" class="glass">Harita yükleniyor…</div>
+
+<div id="about" hidden>
+  <div class="box">
+    <h2>Alaaddin Tepesi’nden Mevlâna’ya</h2>
+    <p>Konya’nın tarihi çekirdeği, kuşbakışı bir maket gibi. Selçuklu başkentinin tepesinden Mevlâna Türbesi’ne uzanan yaklaşık 1,1 kilometrelik aks, çarşısı, camileri ve meydanlarıyla.</p>
+    <p>Sürükleyerek gezin, tekerlek ya da iki parmakla yakınlaşın, alttaki kartlardan bir yere uçun.</p>
+    <dl>
+      <dt>Konum</dt><dd>37,87° K · 32,50° D</dd>
+      <dt>Rakım</dt><dd>1.016 m</dd>
+      <dt>Bakış</dt><dd>güneyden, 35° eğik</dd>
+      <dt>Çözünürlük</dt><dd>9.613 × 6.283 piksel</dd>
+    </dl>
+    <button class="close" id="closeAbout" type="button">Haritaya dön</button>
+  </div>
+</div>
+
+<script>
+  const DATA = {"w": 9613, "h": 6283, "tile": 1024, "levels": [{"z": 0, "f": 1, "cols": 10, "rows": 7, "lw": 9613, "lh": 6283}, {"z": 1, "f": 2, "cols": 5, "rows": 4, "lw": 4806, "lh": 3141}], "places": [{"id": "th0", "name": "Mevlâna Müzesi", "sub": "Yeşil Türbe · 1274", "x": 0.92638, "y": 0.83811, "rank": 1, "lat": 37.8707, "lon": 32.50499}, {"id": "th1", "name": "Sultan Selim Camii", "sub": "Osmanlı · 1570", "x": 0.85077, "y": 0.8413, "rank": 1, "lat": 37.87041, "lon": 32.50412}, {"id": "th2", "name": "Alaaddin Tepesi", "sub": "Selçuklu sarayının tepesi", "x": 0.088, "y": 0.372, "rank": 1, "lat": 37.873, "lon": 32.4933}, {"id": "th3", "name": "Alaeddin Camii", "sub": "Selçuklu · 1235", "x": 0.09463, "y": 0.32164, "rank": 2, "lat": 37.87336, "lon": 32.49274}, {"id": "th4", "name": "Aziziye Camii", "sub": "Barok cephe · 1876", "x": 0.58561, "y": 0.79715, "rank": 1, "lat": 37.86998, "lon": 32.5008}, {"id": "th5", "name": "Tarihi Bedesten", "sub": "Çarşı", "x": 0.50265, "y": 0.80365, "rank": 2, "lat": 37.86963, "lon": 32.49986}, {"id": "th6", "name": "Kapu Camii", "sub": "Osmanlı · 1658", "x": 0.46755, "y": 0.76887, "rank": 2, "lat": 37.86988, "lon": 32.49928}, {"id": "th7", "name": "Hükümet Meydanı", "sub": "Valilik önü", "x": 0.53805, "y": 0.5783, "rank": 2, "lat": 37.87214, "lon": 32.49918}, {"id": "th8", "name": "Şerafeddin Camii", "sub": "Osmanlı · 1636", "x": 0.50365, "y": 0.54186, "rank": 2, "lat": 37.87241, "lon": 32.4986}, {"id": "th9", "name": "İplikçi Camii", "sub": "Selçuklu · 1202", "x": 0.3469, "y": 0.53893, "rank": 2, "lat": 37.87191, "lon": 32.49675}, {"id": "th10", "name": "Karatay Medresesi", "sub": "Çini müzesi · 1251", "x": 0.16565, "y": 0.19158, "rank": 1, "lat": 37.87498, "lon": 32.49294}, {"id": "th12", "name": "Türbe Önü", "sub": "Mevlâna caddesi başı", "x": 0.73849, "y": 0.80732, "rank": 2, "lat": 37.87039, "lon": 32.50264}]};
+  const MPP = 0.11393229166666667;           // metre / harita pikseli (yatay)
+  const $ = (id) => document.getElementById(id);
+  const view = $('view'), stage = $('stage'), pinsEl = $('pins');
+  const W = DATA.w, H = DATA.h;
+
+  // --- görüntüler: altta düşük çözünürlüklü önizleme; üstünde sadece ekranda görünen 1024 px karolar
+  //     (telefon belleği dolmasın diye uzaklaşan karolar DOM'dan çıkarılır)
+  // Dev bir katmanı ölçeklemek yerine her görüntü kendi küçük dönüşümüyle ekrana yerleştirilir (iPhone bellek sınırı)
+  const LO_W = 2400, LO_H = Math.round(2400 * H / W);
+  const lo = new Image(); lo.src = 'lo.jpg'; Object.assign(lo.style, { width: LO_W + 'px', height: LO_H + 'px' }); lo.alt = '';
+  lo.onload = () => $('loading').classList.add('done');
+  stage.append(lo);
+  const T = DATA.tile, LEVELS = DATA.levels, live = new Map();
+  const place = (im) => { im.style.transform = `translate(${tx + im._x * s}px, ${ty + im._y * s}px) scale(${s * im._k})`; };
+  let tileTimer = 0;
+  const updateTiles = () => {
+    tileTimer = 0;
+    const px = s * window.devicePixelRatio;           // ekran pikseli / harita pikseli
+    const L = px >= 0.7 ? LEVELS[0] : px >= 0.22 ? LEVELS[1] : null;
+    const want = new Set();
+    if (L) {
+      const k = W / L.lw, m = 0.25;                   // karo başına harita pikseli ölçeği, kenar payı
+      const x0 = (-tx / s) / (T * k) - m, x1 = ((vw() - tx) / s) / (T * k) + m;
+      const y0 = (-ty / s) / (T * k) - m, y1 = ((vh() - ty) / s) / (T * k) + m;
+      for (let r = Math.max(0, Math.floor(y0)); r <= Math.min(L.rows - 1, Math.floor(y1)); r++)
+        for (let c = Math.max(0, Math.floor(x0)); c <= Math.min(L.cols - 1, Math.floor(x1)); c++) {
+          const key = `t${L.z}_${r}_${c}`; want.add(key);
+          if (live.has(key)) continue;
+          const im = new Image(); im.className = 'piece'; im.alt = ''; im.decoding = 'async';
+          const w = Math.min(T + 2, L.lw - c * T), h = Math.min(T + 2, L.lh - r * T);
+          Object.assign(im.style, { width: w + 'px', height: h + 'px', zIndex: 2 - L.z });
+          im._x = c * T * k; im._y = r * T * k; im._k = k; place(im);
+          im.onload = () => { im.classList.add('on'); scheduleTiles(); };
+          im.src = key + '.jpg'; stage.append(im); live.set(key, im);
+        }
+    }
+    // istenmeyenleri kaldır (seviye geçişinde yeni karolar yüklenene dek eskiler kısa süre kalır)
+    for (const [key, im] of live) if (!want.has(key)) {
+      const sameLevel = L && key.startsWith(`t${L.z}_`);
+      if (sameLevel || !L || [...want].every((k2) => live.get(k2)?.complete)) { im.remove(); live.delete(key); }
+    }
+  };
+  const scheduleTiles = () => { if (!tileTimer) tileTimer = setTimeout(updateTiles, 120); };
+
+  // --- ekran ↔ coğrafi (yer düzlemi doğrusal; yerlerden en küçük kareler afin uydurma)
+  const geo = (() => {
+    const P = DATA.places; const n = P.length;
+    const solve = (key) => { // [a,b,c] : v = a*x + b*y + c
+      let sxx = 0, sxy = 0, sx = 0, syy = 0, sy = 0, sxv = 0, syv = 0, sv = 0;
+      for (const p of P) { const x = p.x, y = p.y, v = p[key]; sxx += x * x; sxy += x * y; sx += x; syy += y * y; sy += y; sxv += x * v; syv += y * v; sv += v; }
+      const M = [[sxx, sxy, sx], [sxy, syy, sy], [sx, sy, n]], B = [sxv, syv, sv];
+      const det = (m) => m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+      const D = det(M);
+      return [0, 1, 2].map((i) => det(M.map((row, ri) => row.map((v, ci) => (ci === i ? B[ri] : v)))) / D);
+    };
+    const A = solve('lat'), Bn = solve('lon');
+    return (fx, fy) => [A[0] * fx + A[1] * fy + A[2], Bn[0] * fx + Bn[1] * fy + Bn[2]];
+  })();
+  const fmt = (v, d) => v.toFixed(4) + '° ' + d;
+
+  // --- kamera: gösterilen (s,tx,ty) hedefe (S,TX,TY) yumuşakça yaklaşır
+  let s = 1, tx = 0, ty = 0, S = 1, TX = 0, TY = 0, vx = 0, vy = 0, raf = 0, dragging = false, fly = null;
+  const vw = () => view.clientWidth, vh = () => view.clientHeight;
+  const minS = () => Math.min(vw() / W, vh() / H) * 0.95;
+  const MAX_S = 2;
+  const clamp = () => {
+    S = Math.min(MAX_S, Math.max(minS(), S));
+    const mw = W * S, mh = H * S, pad = 40;
+    TX = mw + pad * 2 <= vw() ? (vw() - mw) / 2 : Math.min(pad, Math.max(vw() - mw - pad, TX));
+    TY = mh + pad * 2 <= vh() ? (vh() - mh) / 2 : Math.min(pad, Math.max(vh() - mh - pad, TY));
+  };
+  const pins = DATA.places.map((p) => {
+    const el = document.createElement('button');
+    el.type = 'button'; el.className = 'pin r' + p.rank; el.setAttribute('aria-label', p.name);
+    el.innerHTML = `<b></b><i></i><u></u>`; el.querySelector('b').textContent = p.name;
+    el.onclick = (e) => { e.stopPropagation(); flyTo(p); };
+    el.addEventListener('pointerdown', (e) => e.stopPropagation());
+    pinsEl.append(el); return { p, el };
+  });
+  const niceScale = () => {
+    const target = 110 / (s / MPP);                 // ~110 px kaç metre
+    const steps = [10, 20, 25, 50, 100, 200, 250, 500, 1000];
+    const m = steps.find((v) => v >= target * 0.6) || 1000;
+    $('scaleTxt').textContent = m >= 1000 ? m / 1000 + ' km' : m + ' m';
+    $('scaleBar').style.width = Math.round(m * s / MPP) + 'px';
+  };
+  const render = () => {
+    lo.style.transform = `translate(${tx}px, ${ty}px) scale(${s * W / LO_W})`;
+    for (const im of live.values()) place(im);
+    const show2 = s > 0.22;
+    for (const { p, el } of pins) {
+      el.style.transform = `translate3d(${tx + p.x * W * s}px, ${ty + p.y * H * s}px, 0) translate(-50%, -100%)`;
+      el.dataset.hide = p.rank === 2 && !show2 ? '1' : '0';
+    }
+    const [la, lo2] = geo((vw() / 2 - tx) / (W * s), (vh() / 2 - ty) / (H * s));
+    $('coord').textContent = `${fmt(la, 'K')} · ${fmt(lo2, 'D')} · 1.016 m`;
+    const vp = $('vp'), mw = $('mini').clientWidth, mh = mw * H / W;
+    const x0 = Math.max(0, -tx / (W * s)), y0 = Math.max(0, -ty / (H * s));
+    const x1 = Math.min(1, (vw() - tx) / (W * s)), y1 = Math.min(1, (vh() - ty) / (H * s));
+    Object.assign(vp.style, { left: x0 * mw + 'px', top: y0 * mh + 'px', width: (x1 - x0) * mw + 'px', height: (y1 - y0) * mh + 'px' });
+    niceScale();
+    scheduleTiles();
+  };
+  const tick = () => {
+    if (fly) { // zaman bazlı uçuş (ease-in-out)
+      const t = Math.min(1, (performance.now() - fly.t0) / fly.dur), e = t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      const ls = Math.exp(Math.log(fly.s0) + (Math.log(fly.s1) - Math.log(fly.s0)) * e);
+      const cx = fly.c0[0] + (fly.c1[0] - fly.c0[0]) * e, cy = fly.c0[1] + (fly.c1[1] - fly.c0[1]) * e;
+      S = s = ls; TX = tx = vw() / 2 - cx * W * ls; TY = ty = vh() / 2 - cy * H * ls;
+      if (t >= 1) { fly = null; clamp(); }
+      render(); raf = requestAnimationFrame(tick); return;
+    }
+    if (!dragging && (Math.abs(vx) > 0.1 || Math.abs(vy) > 0.1)) { TX += vx; TY += vy; vx *= 0.93; vy *= 0.93; }
+    clamp();
+    const k = 0.2; s += (S - s) * k; tx += (TX - tx) * k; ty += (TY - ty) * k;
+    const settled = !dragging && Math.abs(S - s) < 1e-4 * S && Math.abs(TX - tx) < 0.3 && Math.abs(TY - ty) < 0.3 && Math.abs(vx) <= 0.1 && Math.abs(vy) <= 0.1;
+    if (settled) { s = S; tx = TX; ty = TY; }
+    render(); raf = settled ? 0 : requestAnimationFrame(tick);
+  };
+  const kick = () => { if (!raf) raf = requestAnimationFrame(tick); };
+  const snap = () => { clamp(); s = S; tx = TX; ty = TY; render(); };
+  const zoomAt = (f, cx, cy) => {
+    fly = null;
+    const ns = Math.min(MAX_S, Math.max(minS(), S * f));
+    TX = cx - (cx - TX) * (ns / S); TY = cy - (cy - TY) * (ns / S); S = ns; kick();
+  };
+  const centerFrac = () => [(vw() / 2 - tx) / (W * s), (vh() / 2 - ty) / (H * s)];
+  const flyTo = (p, scale = 0.75) => {
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const s1 = Math.max(minS(), Math.min(MAX_S, scale));
+    fly = { t0: performance.now(), dur: reduce ? 1 : 1100, s0: s, s1, c0: centerFrac(), c1: [p.x, p.y + 0.02 * (1 / s1) * (vh() / H)] };
+    vx = vy = 0; setActive(p); kick();
+  };
+  const C = () => [vw() / 2, vh() / 2];
+  const local = (e) => { const r = view.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+
+  view.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    if (e.ctrlKey) zoomAt(Math.exp(-e.deltaY * 0.012), ...local(e));
+    else if (e.deltaX !== 0) { fly = null; TX -= e.deltaX; TY -= e.deltaY; kick(); }
+    else zoomAt(Math.exp(-e.deltaY * 0.0022), ...local(e));
+  }, { passive: false });
+  const pts = new Map(); let lastD = null, lastT = 0, lastTap = 0;
+  view.addEventListener('pointerdown', (e) => {
+    view.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]);
+    dragging = true; fly = null; vx = vy = 0; lastD = null; lastT = performance.now(); view.classList.add('drag');
+    hideResults();
+    if (e.pointerType !== 'mouse' && pts.size === 1) { const now = performance.now(); if (now - lastTap < 300) zoomAt(2, ...local(e)); lastTap = now; }
+  });
+  view.addEventListener('pointermove', (e) => {
+    if (!pts.has(e.pointerId)) return;
+    const prev = pts.get(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pts.size === 1) {
+      const dx = e.clientX - prev[0], dy = e.clientY - prev[1];
+      TX += dx; TY += dy; tx += dx; ty += dy;
+      const now = performance.now(), dt = Math.max(1, now - lastT); lastT = now;
+      vx = vx * 0.5 + (dx * 16 / dt) * 0.5; vy = vy * 0.5 + (dy * 16 / dt) * 0.5; kick();
+    } else if (pts.size === 2) {
+      const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]), r = view.getBoundingClientRect();
+      if (lastD) zoomAt(d / lastD, (a[0] + b[0]) / 2 - r.left, (a[1] + b[1]) / 2 - r.top);
+      lastD = d; vx = vy = 0;
+    }
+  });
+  const end = (e) => {
+    pts.delete(e.pointerId); lastD = null;
+    if (!pts.size) { dragging = false; view.classList.remove('drag'); if (performance.now() - lastT > 80) vx = vy = 0; kick(); }
+  };
+  view.addEventListener('pointerup', end); view.addEventListener('pointercancel', end);
+  view.addEventListener('dblclick', (e) => zoomAt(e.shiftKey ? 0.5 : 2, ...local(e)));
+  addEventListener('keydown', (e) => {
+    if (e.target === $('q')) return;
+    const m = { ArrowLeft: [150, 0], ArrowRight: [-150, 0], ArrowUp: [0, 150], ArrowDown: [0, -150] }[e.key];
+    if (m) { fly = null; TX += m[0]; TY += m[1]; kick(); e.preventDefault(); }
+    else if (e.key === '+' || e.key === '=') zoomAt(1.5, ...C());
+    else if (e.key === '-') zoomAt(1 / 1.5, ...C());
+    else if (e.key === '0') { S = minS(); kick(); }
+    else if (e.key === 'Escape') $('about').hidden = true;
+  });
+  $('zin').onclick = () => zoomAt(1.6, ...C());
+  $('zout').onclick = () => zoomAt(1 / 1.6, ...C());
+  $('fit').onclick = () => { fly = null; S = minS(); kick(); setActive(null); };
+
+  // --- mini harita
+  $('mini').addEventListener('click', (e) => {
+    const r = $('mini').getBoundingClientRect();
+    flyTo({ x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height }, Math.max(s, 0.35));
+  });
+
+  // --- yer kartları
+  const cards = DATA.places.map((p) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'card'; b.setAttribute('role', 'listitem');
+    b.innerHTML = `<img alt="" loading="lazy"><span></span>`;
+    b.querySelector('img').src = p.id + '.jpg'; b.querySelector('span').textContent = p.name; b.title = p.sub;
+    b.onclick = () => flyTo(p);
+    $('cards').append(b); return b;
+  });
+  const setActive = (p) => {
+    DATA.places.forEach((q, i) => { const on = q === p; cards[i].classList.toggle('active', on); pins[i].el.classList.toggle('active', on); if (on) cards[i].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); });
+  };
+  $('prev').onclick = () => $('cards').scrollBy({ left: -300, behavior: 'smooth' });
+  $('next').onclick = () => $('cards').scrollBy({ left: 300, behavior: 'smooth' });
+
+  // --- arama
+  const norm = (t) => t.toLocaleLowerCase('tr').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ı/g, 'i');
+  const results = $('results'); let sel = 0, hits = [];
+  const hideResults = () => { results.hidden = true; };
+  const showResults = () => {
+    const q = norm($('q').value.trim());
+    hits = q ? DATA.places.filter((p) => norm(p.name + ' ' + p.sub).includes(q)) : DATA.places.filter((p) => p.rank === 1);
+    results.innerHTML = '';
+    if (!hits.length) { const li = document.createElement('li'); li.innerHTML = '<button type="button" disabled>Bu adla bir yer yok, başka bir ad deneyin</button>'; results.append(li); }
+    hits.forEach((p, i) => {
+      const li = document.createElement('li'), b = document.createElement('button');
+      b.type = 'button'; b.className = i === sel ? 'sel' : ''; b.innerHTML = '<span></span><small></small>';
+      b.querySelector('span').textContent = p.name; b.querySelector('small').textContent = p.sub;
+      b.onclick = () => { flyTo(p); $('q').value = p.name; hideResults(); };
+      li.append(b); results.append(li);
+    });
+    results.hidden = false;
+  };
+  $('q').addEventListener('focus', () => { sel = 0; showResults(); });
+  $('q').addEventListener('input', () => { sel = 0; showResults(); });
+  $('q').addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { sel = Math.min(hits.length - 1, sel + 1); showResults(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { sel = Math.max(0, sel - 1); showResults(); e.preventDefault(); }
+    else if (e.key === 'Enter' && hits[sel]) { flyTo(hits[sel]); $('q').value = hits[sel].name; hideResults(); $('q').blur(); }
+    else if (e.key === 'Escape') { hideResults(); $('q').blur(); }
+  });
+  document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.search')) hideResults(); });
+
+  // --- bilgi
+  $('info').onclick = () => { $('about').hidden = false; $('closeAbout').focus(); };
+  $('closeAbout').onclick = () => { $('about').hidden = true; };
+  $('about').addEventListener('click', (e) => { if (e.target === $('about')) $('about').hidden = true; });
+
+  // --- açılış: ekranı dolduran ölçek, haritanın ortası
+  const opening = () => {
+    S = Math.max(vw() / W, vh() / H) * 1.25; const c = [0.55, 0.55];
+    TX = vw() / 2 - c[0] * W * S; TY = vh() / 2 - c[1] * H * S; snap();
+  };
+  addEventListener('resize', snap);
+  opening();
+</script>

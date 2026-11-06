@@ -4,7 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="icon" href="data:,">
-<style>html{color-scheme:light}body{margin:0}[hidden]{display:none!important}</style>
+<style>html{color-scheme:light}body{margin:0}[hidden]{display:none!important}  .modes { display: flex; gap: 2px; padding: 3px; border-radius: 12px; background: var(--glass); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid var(--hair); box-shadow: var(--shadow); align-self: flex-start; }
+  .modes a { font: 500 13px var(--body); color: var(--ink); text-decoration: none; padding: 9px 12px; border-radius: 9px; white-space: nowrap; }
+  .modes a:hover { background: var(--turquoise-soft); }
+  .modes a[aria-current="page"] { background: var(--turquoise); color: #fff; }
+  @media (max-width: 760px) { #top { flex-wrap: wrap; } .modes { order: 5; width: 100%; } .modes a { flex: 1; text-align: center; padding: 8px 4px; } }
+</style>
 <title>Konya Merkez Maket</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
@@ -207,6 +212,7 @@
     <h1>Konya <em>merkez</em></h1>
     <span class="coord" id="coord">37.8716° K · 32.4990° D · 1.016 m</span>
   </div>
+  <nav class="modes" aria-label="Mod"><a href="./" aria-current="page">Maket</a><a href="./foto/">Fotoğraf</a><a href="./gunluk/">Gelişim</a><a href="./stil/">Stiller</a></nav>
   <div class="search">
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
     <input id="q" type="search" placeholder="Yer ara" autocomplete="off" aria-label="Yer ara">

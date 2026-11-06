@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Konya Harita Günlüğü</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: tek sütun defter; üstte özet, yapışkan bölüm menüsü, aşama zaman çizelgesi, referanslar, araştırma, deneyler, yol haritası, harcama */
+  :root {
+    --paper: #f5f2ea;          /* kâğıt */
+    --card: #fffdf8;
+    --ink: #1c2422;
+    --ink-soft: #5b6662;
+    --hair: rgba(28, 36, 34, .12);
+    --turq: #0f7f74;           /* Mevlâna kubbesi */
+    --turq-soft: rgba(15, 127, 116, .1);
+    --tile: #c4562b;           /* Konya kiremidi */
+    --tile-soft: rgba(196, 86, 43, .1);
+    --ok: #2f7d3b; --warn: #a76a00; --bad: #b3372b;
+    --display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+    --body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --paper: #151b1b; --card: #1c2423; --ink: #ecefe9; --ink-soft: #a2ada8; --hair: rgba(236, 239, 233, .13);
+    --turq: #44c3b5; --turq-soft: rgba(68, 195, 181, .14); --tile: #e3784a; --tile-soft: rgba(227, 120, 74, .14);
+    --ok: #6cc47a; --warn: #e3a83a; --bad: #ef7466; color-scheme: dark } }
+  :root[data-theme="dark"] {
+    --paper: #151b1b; --card: #1c2423; --ink: #ecefe9; --ink-soft: #a2ada8; --hair: rgba(236, 239, 233, .13);
+    --turq: #44c3b5; --turq-soft: rgba(68, 195, 181, .14); --tile: #e3784a; --tile-soft: rgba(227, 120, 74, .14);
+    --ok: #6cc47a; --warn: #e3a83a; --bad: #ef7466; color-scheme: dark }
+
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.6 var(--body); -webkit-font-smoothing: antialiased; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--paper); }
+  .wrap { max-width: 1080px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  a { color: var(--turq); }
+  :focus-visible { outline: 2px solid var(--turq); outline-offset: 2px; }
+  h1, h2, h3 { text-wrap: balance; }
+  img { max-width: 100%; display: block; }
+
+  header.hero { padding-block: 48px 28px; display: grid; gap: 18px; }
+  .eyebrow { font: 500 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-soft); }
+  .hero h1 { margin: 0; font: 400 clamp(44px, 8vw, 84px)/.95 var(--display); letter-spacing: -.02em; }
+  .hero h1 em { color: var(--turq); }
+  .hero p { margin: 0; max-width: 62ch; color: var(--ink-soft); font-size: 18px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--hair); border: 1px solid var(--hair); border-radius: 14px; overflow: hidden; }
+  .stats div { background: var(--card); padding: 14px 16px; }
+  .stats b { display: block; font: 400 34px/1.1 var(--display); font-variant-numeric: tabular-nums; }
+  .stats span { font-size: 13px; color: var(--ink-soft); }
+  .hero-img { border-radius: 16px; overflow: hidden; border: 1px solid var(--hair); position: relative; }
+  .hero-img figcaption { position: absolute; left: 12px; bottom: 12px; background: rgba(0,0,0,.62); color: #fff; font: 12px var(--mono); padding: 5px 9px; border-radius: 8px; }
+
+  nav.toc { position: sticky; top: 61px; z-index: 5; background: color-mix(in srgb, var(--paper) 88%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid var(--hair); }
+  nav.toc .wrap { display: flex; gap: 4px; overflow-x: auto; padding-block: 10px; scrollbar-width: none; }
+  nav.toc a { flex: none; text-decoration: none; color: var(--ink-soft); font: 500 14px var(--body); padding: 6px 12px; border-radius: 999px; }
+  nav.toc a:hover { background: var(--turq-soft); color: var(--ink); }
+
+  section { padding-block: 56px 8px; }
+  section > .wrap > h2 { margin: 0 0 6px; font: 400 clamp(32px, 5vw, 48px)/1.05 var(--display); }
+  .lede { margin: 0 0 28px; color: var(--ink-soft); max-width: 66ch; }
+
+  /* zaman çizelgesi */
+  .timeline { display: grid; gap: 28px; position: relative; }
+  .stage { display: grid; grid-template-columns: 64px 1fr; gap: 0 18px; }
+  .stage .num { font: 400 40px/1 var(--display); color: var(--turq); text-align: right; padding-top: 4px; font-variant-numeric: tabular-nums; }
+  .stage .body { background: var(--card); border: 1px solid var(--hair); border-radius: 16px; padding: 20px; min-width: 0; display: grid; gap: 14px; }
+  .stage.v2 .num { color: var(--tile); }
+  .stage h3 { margin: 0; font: 600 21px/1.25 var(--body); }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font: 12px var(--mono); padding: 3px 8px; border-radius: 999px; background: var(--turq-soft); color: var(--ink); white-space: nowrap; }
+  .chip.cost { background: var(--tile-soft); }
+  .chip.bad { background: color-mix(in srgb, var(--bad) 14%, transparent); }
+  .chip.ok { background: color-mix(in srgb, var(--ok) 16%, transparent); }
+  .stage p { margin: 0; max-width: 70ch; }
+  .notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .note { border-left: 3px solid var(--hair); padding: 2px 0 2px 12px; font-size: 15px; color: var(--ink-soft); }
+  .note b { color: var(--ink); display: block; font-size: 13px; letter-spacing: .02em; }
+  .note.good { border-color: var(--ok); } .note.bad { border-color: var(--bad); } .note.next { border-color: var(--turq); }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .pair figure, .single { margin: 0; min-width: 0; }
+  figure { margin: 0; }
+  figure img { border-radius: 10px; border: 1px solid var(--hair); cursor: zoom-in; background: var(--hair); }
+  figcaption { font: 12px var(--mono); color: var(--ink-soft); margin-top: 6px; }
+
+  /* kaydırmalı karşılaştırma */
+  .cmp { position: relative; border-radius: 12px; overflow: hidden; border: 1px solid var(--hair); aspect-ratio: 14 / 9; max-width: 100%; touch-action: pan-y; user-select: none; cursor: ew-resize; background: var(--hair); }
+  .cmp img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border: 0; border-radius: 0; cursor: inherit; }
+  .cmp .b { clip-path: inset(0 0 0 var(--x, 50%)); }
+  .cmp .bar { position: absolute; top: 0; bottom: 0; left: var(--x, 50%); width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.3); pointer-events: none; }
+  .cmp .bar::after { content: "⟷"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 34px; height: 34px; border-radius: 50%; background: #fff; color: #111; display: grid; place-items: center; font-size: 16px; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+  .cmp .tag { position: absolute; top: 10px; font: 12px var(--mono); background: rgba(0,0,0,.6); color: #fff; padding: 4px 8px; border-radius: 7px; pointer-events: none; }
+  .cmp .tag.l { left: 10px; } .cmp .tag.r { right: 10px; }
+
+  /* referans kartları */
+  .refs { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .ref { background: var(--card); border: 1px solid var(--hair); border-radius: 16px; overflow: hidden; display: grid; min-width: 0; }
+  .ref img { border: 0; border-radius: 0; }
+  .ref .txt { padding: 16px; display: grid; gap: 8px; }
+  .ref h3 { margin: 0; font: 400 28px/1 var(--display); }
+  .ref ul { margin: 0; padding-left: 18px; color: var(--ink-soft); font-size: 15px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--hair); border-radius: 14px; background: var(--card); }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--hair); vertical-align: top; }
+  th { font: 600 12px var(--body); letter-spacing: .05em; text-transform: uppercase; color: var(--ink-soft); white-space: nowrap; }
+  tr:last-child td { border-bottom: 0; }
+  td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tr.us td { background: var(--turq-soft); }
+
+  .exps { display: grid; gap: 20px; }
+  .exp { background: var(--card); border: 1px solid var(--hair); border-radius: 16px; padding: 18px; display: grid; gap: 12px; min-width: 0; }
+  .exp h3 { margin: 0; font: 600 19px var(--body); }
+  .verdict { font: 600 13px var(--body); padding: 3px 10px; border-radius: 999px; justify-self: start; }
+  .verdict.good { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+  .verdict.mid { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+  .verdict.bad { background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); }
+
+  .road { display: grid; gap: 14px; counter-reset: r; }
+  .step { display: grid; grid-template-columns: 52px 1fr auto; gap: 14px; align-items: start; background: var(--card); border: 1px solid var(--hair); border-radius: 16px; padding: 18px; }
+  .step .k { font: 400 34px/1 var(--display); color: var(--turq); }
+  .step h3 { margin: 0 0 4px; font: 600 18px var(--body); }
+  .step p { margin: 0; color: var(--ink-soft); font-size: 15px; max-width: 64ch; }
+  .step .price { text-align: right; font: 500 13px var(--mono); white-space: nowrap; }
+  .step .price b { display: block; font: 400 26px/1.1 var(--display); color: var(--ink); }
+  .step.free .price b { color: var(--ok); }
+  .step ul { margin: 8px 0 0; padding-left: 18px; color: var(--ink-soft); font-size: 15px; }
+
+  footer { padding-block: 48px 64px; color: var(--ink-soft); font-size: 13px; }
+  footer .wrap { display: grid; gap: 6px; }
+
+  #lb { position: fixed; inset: 0; z-index: 20; background: rgba(8, 12, 12, .9); display: grid; place-items: center; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); cursor: zoom-out; }
+  #lb img { max-height: 92vh; max-width: 100%; border-radius: 8px; }
+  [hidden] { display: none !important; }
+
+  @media (max-width: 640px) {
+    .stage { grid-template-columns: 1fr; }
+    .stage .num { text-align: left; font-size: 30px; margin-bottom: 6px; }
+    .pair { grid-template-columns: 1fr; }
+    .step { grid-template-columns: 40px 1fr; }
+    .step .price { grid-column: 2; text-align: left; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  .sitebar { position: sticky; top: 0; z-index: 8; background: color-mix(in srgb, var(--card) 88%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--hair); }
+  .sitebar .in { max-width: 1080px; margin: 0 auto; padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+  .sitebar .brand { font: 400 26px/1 var(--display); color: var(--ink); text-decoration: none; }
+  .sitebar .brand em { color: var(--turq); }
+  .modes { display: flex; gap: 2px; padding: 3px; border-radius: 12px; background: var(--paper); border: 1px solid var(--hair); }
+  .modes a { font: 500 13px var(--body); color: var(--ink); text-decoration: none; padding: 8px 12px; border-radius: 9px; }
+  .modes a:hover { background: var(--hair); }
+  .modes a[aria-current="page"] { background: var(--turq); color: #fff; }
+  @media (max-width: 560px) { .modes { width: 100%; } .modes a { flex: 1; text-align: center; padding: 8px 4px; } }
+</style>
+<div class="sitebar"><div class="in"><a class="brand" href="../">Konya <em>merkez</em></a><nav class="modes" aria-label="Mod"><a href="../">Maket</a><a href="../foto/">Fotoğraf</a><a href="../gunluk/" aria-current="page">Gelişim</a><a href="../stil/">Stiller</a></nav></div></div>
+
+<header class="hero wrap">
+  <div class="eyebrow">Konya merkez · izometrik harita · çalışma defteri</div>
+  <h1>Konya haritası <em>nasıl büyüdü</em></h1>
+  <p>İlk kutu bina denemesinden, Alaaddin ile Mevlâna arasını kuşbakışı gösteren bugünkü maket haritaya kadar her aşama, neyi düzelttiği ve neyi bozduğu. En altta başka şehirlerin haritalarıyla karşılaştırma var.</p>
+  <div class="stats">
+    <div><b>13</b><span>aşama</span></div>
+    <div><b>~90</b><span>çizilmiş kare</span></div>
+    <div><b>60 MP</b><span>son harita</span></div>
+    <div><b>2</b><span>stil: fotoğraf ve maket</span></div>
+  </div>
+  <figure class="hero-img"><img src="s13_cikti.jpg" alt="Konya merkezin son hali: Alaaddin Tepesi'nden Mevlâna'ya kuşbakışı" data-full="s13_cikti.jpg"><figcaption>Aşama 13 · bugünkü harita</figcaption></figure>
+</header>
+
+<nav class="toc" aria-label="Bölümler"><div class="wrap">
+  <a href="#asamalar">Aşamalar</a><a href="#referanslar">Örnekler</a><a href="#deneyler">Denemeler</a>
+</div></nav>
+
+<section id="asamalar"><div class="wrap">
+  <h2>Aşamalar</h2>
+  <p class="lede">Turkuaz numaralar ilk dönemi (piksel art), kiremit rengi numaralar sonraki dönemleri (fotogerçekçi, sonra boyanmış maket) gösteriyor. Görsellere tıklayınca büyür.</p>
+  <div class="timeline">
+
+    <article class="stage"><div class="num">1</div><div class="body">
+      <h3>Kutu binalarla ilk deneme</h3>
+      <div class="meta"><span class="chip">2 Kasım</span><span class="chip">açık bina verisi</span></div>
+      <p>Bina ayak izlerini kutu olarak yükseltip izometrik bir görüntü aldık, yapay zekâya piksel art olarak yeniden çizdirdik.</p>
+      <div class="pair">
+        <figure><img src="s1_girdi.jpg" alt="Kutu binalarla 3D görüntü" loading="lazy"><figcaption>Girdi · kutu binalar</figcaption></figure>
+        <figure><img src="s1_cikti.jpg" alt="İlk piksel art çizim" loading="lazy"><figcaption>Çıktı · piksel art</figcaption></figure>
+      </div>
+      <div class="notes"><div class="note bad"><b>Sorun</b>Zemin boş, meydan ve yollar uydurma. Veride olmayan evler hiç yok.</div><div class="note next"><b>Sonraki adım</b>Zemine uydu fotoğrafı kaplamak.</div></div>
+    </div></article>
+
+    <article class="stage"><div class="num">2</div><div class="body">
+      <h3>Uydu fotoğrafı kaplaması</h3>
+      <div class="meta"><span class="chip">uydu görüntüsü</span></div>
+      <p>Zemine ve çatılara uydu fotoğraflarından yaptığımız mozaiği kapladık. Mevlâna, mezarlık ve meydanlar gerçeğe yaklaştı.</p>
+      <div class="pair">
+        <figure><img src="s2_girdi.jpg" alt="Uydu kaplamalı render" loading="lazy"><figcaption>Girdi · bina verisi + uydu</figcaption></figure>
+        <figure><img src="s2_cikti.jpg" alt="Uydu kaplamalı çizim" loading="lazy"><figcaption>Çıktı</figcaption></figure>
+      </div>
+      <div class="notes"><div class="note good"><b>İyi</b>Mevlâna külliyesi, servili mezarlık, araçlar.</div><div class="note bad"><b>Sorun</b>Veride olmayan binalar yerde düz çatı gibi duruyor.</div></div>
+    </div></article>
+
+    <article class="stage"><div class="num">3</div><div class="body">
+      <h3>Mevlâna → Alaaddin şeridi, 5 kare</h3>
+      <div class="meta"><span class="chip">ek bina verisi + uydu</span></div>
+      <p>Başka bir kaynaktan 2.193 eksik bina ekledik, iki noktayı çapraz bir şeritle bağladık. Her yeni kareye önceki çizimin kenarı yapıştırılarak devam ettirildi.</p>
+      <div class="pair">
+        <figure><img src="s3_girdi.jpg" alt="Şerit girdisi" loading="lazy"><figcaption>Girdi</figcaption></figure>
+        <figure><img src="s3_cikti.jpg" alt="Şerit çizimi" loading="lazy"><figcaption>Çıktı · 3.546 × 1.844</figcaption></figure>
+      </div>
+    </div></article>
+
+    <article class="stage"><div class="num">4</div><div class="body">
+      <h3>Kaynağı gerçek 3D şehir modeline çevirmek</h3>
+      <div class="meta"><span class="chip">fotogrametrik 3D model</span></div>
+      <p>Kutu binalar yerine Konya'nın fotogrametrik 3D modelini ortografik kamerayla render ettik. Bina şekilleri ve yükseklikleri gerçek oldu.</p>
+      <div class="pair">
+        <figure><img src="s4_girdi.jpg" alt="3D model şeridi" loading="lazy"><figcaption>Girdi · 3D model</figcaption></figure>
+        <figure><img src="s4_cikti.jpg" alt="3D modelden şerit çizimi" loading="lazy"><figcaption>Çıktı</figcaption></figure>
+      </div>
+      <div class="notes"><div class="note bad"><b>Sorun</b>"Daha net olsun", "çok dik sanki". 1K çözünürlük bulanık.</div></div>
+    </div></article>
+
+    <article class="stage"><div class="num">5</div><div class="body">
+      <h3>2K çözünürlük, 10 karelik ızgara</h3>
+      <div class="meta"><span class="chip">2048 px kare</span><span class="chip">20° açı</span></div>
+      <p>Şerit yerine 5 × 2 ızgaraya, 2K çözünürlüğe ve daha yatık açıya geçtik. Birleştirmede önce çizilen kare kazandı, sadece dar bir bantta harmanlandı.</p>
+      <div class="pair">
+        <figure><img src="s5_cikti.jpg" alt="10 karelik 2K harita" loading="lazy"><figcaption>Tüm harita</figcaption></figure>
+        <figure><img src="s5_yakin.jpg" alt="Mevlâna yakın plan, ilk 2K" loading="lazy"><figcaption>Mevlâna yakın</figcaption></figure>
+      </div>
+      <div class="notes"><div class="note bad"><b>Sorun</b>"Çok karanlık geldi genel."</div></div>
+    </div></article>
+
+    <article class="stage"><div class="num">6</div><div class="body">
+      <h3>Aydınlatma ve kuzeye, Zafer'e genişleme: 18 kare</h3>
+      <div class="meta"><span class="chip">8.353 × 4.293</span></div>
+      <p>Girdileri aydınlatıp yeni kareleri komşularının rengine eşitledik. Kuzeyde Zafer ve Kültürpark eklendi.</p>
+      <div class="pair">
+        <figure><img src="s6_cikti.jpg" alt="18 karelik piksel art harita" loading="lazy"><figcaption>Tüm harita · ilk dönemin sonu</figcaption></figure>
+        <figure><img src="s6_yakin.jpg" alt="Mevlâna yakın plan, 18 kare" loading="lazy"><figcaption>Mevlâna yakın</figcaption></figure>
+      </div>
+      <div class="notes"><div class="note bad"><b>Sorun</b>isometric istanbul ile kıyaslayınca: açı uzak, renkler soluk, binaların yüksekliği okunmuyor, geçişler belli.</div></div>
+    </div></article>
+
+    <article class="stage v2"><div class="num">7</div><div class="body">
+      <h3>Baştan: 35° açı, 1,5 kat yakın, fotogerçekçi talimat</h3>
+      <div class="meta"><span class="chip">zoom 3 · 35°</span><span class="chip">24 kare</span></div>
+      <p>İstanbul örneğine bakıp kamerayı yükselttik ve yaklaştırdık. Talimatı "temizlenmiş, canlı, yaz günü fotogerçekçi maket" olarak yeniden yazdık. Tek test karesi çok iyi çıktı.</p>
+      <div class="cmp" data-cmp><img src="t_girdi.jpg" alt="Mevlâna test karesi girdisi"><img class="b" src="t_cikti.jpg" alt="Mevlâna test karesi çıktısı"><span class="bar"></span><span class="tag l">3D model girdisi</span><span class="tag r">Çizim</span></div>
+    </div></article>
+
+    <article class="stage v2"><div class="num">8</div><div class="body">
+      <h3>Kaza: boş girdiler, uydurma camiler</h3>
+      <div class="meta"><span class="chip bad">12 kare çöpe</span></div>
+      <p>İnternet bağlantısı kopunca 3. kareden sonraki 3D görüntüleri boş indi. Model boş karelere bakıp şehri kafasından uydurdu: altı tane turkuaz kubbeli sahte cami. Bunlar atıldı. Artık girdi boşsa çizim hiç başlamıyor.</p>
+      <figure><img src="x_uydurma.jpg" alt="Boş girdilerden uydurulmuş camiler" loading="lazy"><figcaption>Tek bir yeşil kubbe olması gerekirken çıkan altı kubbe</figcaption></figure>
+    </div></article>
+
+    <article class="stage v2"><div class="num">9</div><div class="body">
+      <h3>Doğru girdilerle tam harita</h3>
+      <div class="meta"><span class="chip">9.613 × 6.283</span><span class="chip ok">sahte yapı yok</span></div>
+      <p>Kalan 21 kareyi sağlam girdilerle çizdik ve talimata "girdide olmayan cami ekleme" kuralını koyduk. Minareler dik, Selimiye ile Mevlâna net.</p>
+      <div class="pair">
+        <figure><img src="s7_cikti.jpg" alt="İkinci dönem ilk tam harita" loading="lazy"><figcaption>Tüm harita · ham</figcaption></figure>
+        <figure><img src="s7_yakin.jpg" alt="Mevlâna yakın plan, ikinci dönem" loading="lazy"><figcaption>Mevlâna yakın</figcaption></figure>
+      </div>
+      <div class="notes"><div class="note bad"><b>Sorun</b>"Çok gerçekçi, uydu haritası gibi." Kareler arasında ton farkı var.</div></div>
+    </div></article>
+
+    <article class="stage v2"><div class="num">10</div><div class="body">
+      <h3>Renk canlandırma ve maket testi</h3>
+      <div class="meta"><span class="chip">bedava renk ayarı</span></div>
+      <p>İki kareyi "3D maket" stiliyle denedik. Ağaçlar oyuncak gibi oldu, beğenmedik. Onun yerine bütün haritaya doygunluk, kontrast ve netlik ayarı uyguladık.</p>
+      <figure><img src="x_maket.jpg" alt="Fotogerçekçi, filtre ve maket stilinin karşılaştırması" loading="lazy"><figcaption>Soldan: fotogerçekçi · basit filtre · yapay zekâ maket stili</figcaption></figure>
+    </div></article>
+
+    <article class="stage v2"><div class="num">11</div><div class="body">
+      <h3>Dikişler, İplikçi ve telefon düzeltmeleri</h3>
+      <div class="meta"><span class="chip">çok bantlı harmanlama</span><span class="chip">90 karo</span></div>
+      <p>Önce 24 karenin tonunu birlikte eşitledik. Sonra panorama yazılımlarının çok bantlı harmanlamasına geçtik: renk farkı geniş alanda, ince ayrıntı dar bantta eriyor. İplikçi Camii bahçeye dönmüştü, Kalecik'e sahte kubbe eklenmişti; ikisini yeniden çizdirdik. Telefonda çökmesin diye görüntüleyiciyi 1024 piksellik karolara böldük.</p>
+      <div class="cmp" data-cmp><img src="s9_iplikci.jpg" alt="İplikçi Camii önce: bahçe"><img class="b" src="s10_iplikci.jpg" alt="İplikçi Camii sonra: cami"><span class="bar"></span><span class="tag l">Önce</span><span class="tag r">Sonra</span></div>
+      <figure><img src="x_dikis2.jpg" alt="Şerafeddin yanında dikiş: eski, ara, yeni" loading="lazy"><figcaption>Şerafeddin yanındaki dikiş: eski · ton eşitleme · çok bantlı</figcaption></figure>
+    </div></article>
+
+    <article class="stage v2"><div class="num">12</div><div class="body">
+      <h3>30° açı, yüksek binalar ve stil seçimi</h3>
+      <div class="meta"><span class="chip">30° · binalar ×1,3</span><span class="chip">5 yer × 2 stil</span></div>
+      <p>Cepheler daha çok görünsün diye kamerayı 30°'ye indirip binaları 1,3 kat yükselttik. Aynı beş yeri iki stilde çizdik: boyanmış maket ve temiz illüstrasyon. Maket seçildi.</p>
+      <figure><img src="s12_stiller.jpg" alt="Mevlâna: girdi, maket ve illüstrasyon stilleri" loading="lazy"><figcaption>Soldan: 3D girdi · A maket · B illüstrasyon</figcaption></figure>
+    </div></article>
+
+    <article class="stage v2"><div class="num">13</div><div class="body">
+      <h3>Maket harita</h3>
+      <div class="meta"><span class="chip">9.613 × 4.509</span><span class="chip">18 kare</span><span class="chip ok">sahte kubbeler temizlendi</span></div>
+      <p>Mevlâna ile Alaaddin arası boyanmış maket stilinde. Katlar ve pencere sıraları okunuyor, ağaçlar yaz hâlinde. Mevlâna dışında çıkan turkuaz kubbeler otomatik bulunup kurşun grisine boyandı.</p>
+      <div class="pair">
+        <figure><img src="s13_cikti.jpg" alt="Maket haritanın tamamı" loading="lazy"><figcaption>Tüm harita</figcaption></figure>
+        <figure><img src="s13_yakin.jpg" alt="Mevlâna yakın plan, maket" loading="lazy"><figcaption>Mevlâna yakın</figcaption></figure>
+      </div>
+    </div></article>
+    <article class="stage v2"><div class="num">14</div><div class="body">
+      <h3>Bedesten: ada ada ve kat kat</h3>
+      <div class="meta"><span class="chip">6 Kasım</span><span class="chip">sokak fotoğraflarıyla kat sayımı</span></div>
+      <p>Haritada katlar düşüktü, cepheler okunmuyordu. Bedesten bölgesini referans aldık: binaları fotoğraflardan saydık, adaları yeniden kurduk, Kapu Camii’nin duvarlarını yükselttik.</p>
+      <figure><img src="s14.jpg" alt="Bedesten: önce ve sonra" loading="lazy"><figcaption>Bedesten: önce ve sonra</figcaption></figure>
+    </div></article>
+
+    <article class="stage v2"><div class="num">15</div><div class="body">
+      <h3>Mevlana Caddesi, bina bina</h3>
+      <div class="meta"><span class="chip">ayrı ayrı binalar</span><span class="chip">gerçek cephe renkleri</span></div>
+      <p>Yan yana binalar tek kütleye dönüşmüş, sahte kuleler çıkmıştı. Her binayı kendi tabanında, kendi rengi ve yüksekliğiyle yeniden kurduk. Rampalı ve Suriçi tarafı da bu turda düzeldi.</p>
+      <figure><img src="s15a.jpg" alt="Batı yarısı: Rampalı ve Suriçi" loading="lazy"><figcaption>Batı yarısı: Rampalı ve Suriçi</figcaption></figure><figure><img src="s15b.jpg" alt="Doğu yarısı: Mevlana ucundan Şerafeddin’e" loading="lazy"><figcaption>Doğu yarısı: Mevlana ucundan Şerafeddin’e</figcaption></figure>
+    </div></article>
+
+    <article class="stage v2"><div class="num">16</div><div class="body">
+      <h3>VakıfBank, Türbeönü ve köşe binalar</h3>
+      <div class="meta"><span class="chip">elle doğrulama</span></div>
+      <p>Duvarsız yerde duran çatılara gerçek cepheleri geldi. Otopark ve boş arsa üstündeki sahte kuleler kaldırıldı, bükülmüş köşe sırası düzeltildi.</p>
+      <figure><img src="s16a.jpg" alt="VakıfBank çevresi ve Türbeönü Çarşısı" loading="lazy"><figcaption>VakıfBank çevresi ve Türbeönü Çarşısı</figcaption></figure><figure><img src="s16b.jpg" alt="Köşe sıra ve Vestel köşesi" loading="lazy"><figcaption>Köşe sıra ve Vestel köşesi</figcaption></figure>
+    </div></article>
+
+    <article class="stage v2"><div class="num">17</div><div class="body">
+      <h3>Camiler, pazar, Suriçi ve Şems çevresi</h3>
+      <div class="meta"><span class="chip">çift sayım</span><span class="chip">uydurma yapılar elendi</span></div>
+      <p>İplikçi Camii tuğla duvarları ve minaresiyle yeniden çizildi, Aziziye’nin iki minaresi gerçek yerine, kuzey köşelere alındı. Düz görünen pazar çatıları kabartma kazandı.</p>
+      <figure><img src="s17c.jpg" alt="İplikçi, Aziziye, pazar ve Suriçi" loading="lazy"><figcaption>İplikçi, Aziziye, pazar ve Suriçi</figcaption></figure><figure><img src="s17a.jpg" alt="Mevlana Caddesi kuzeyi" loading="lazy"><figcaption>Mevlana Caddesi kuzeyi</figcaption></figure><figure><img src="s17b.jpg" alt="Şems-i Tebrizî çevresi" loading="lazy"><figcaption>Şems-i Tebrizî çevresi</figcaption></figure>
+    </div></article>
+
+    <article class="stage v2"><div class="num">18</div><div class="body">
+      <h3>Zengin Han sırası ve Aziz Pavlus</h3>
+      <div class="meta"><span class="chip">son hâl</span></div>
+      <p>Tek dev kırmızı kütle, fotoğraflardaki gibi yan yana apartmanlara ayrıldı; çevresindeki eksik binalar eklendi. Aziz Pavlus Kilisesi taş duvarı ve kulesiyle yerine oturdu.</p>
+      <figure><img src="s18.jpg" alt="Kırmızı sıra çevresi ve Aziz Pavlus" loading="lazy"><figcaption>Kırmızı sıra çevresi ve Aziz Pavlus</figcaption></figure>
+    </div></article>
+
+  </div>
+
+  <h3 style="margin:40px 0 12px;font:400 30px var(--display)">Aynı yer, iki dönem</h3>
+  <div class="cmp" data-cmp style="aspect-ratio: 14/9"><img src="s6_yakin.jpg" alt="Mevlâna, ilk dönem"><img class="b" src="s13_yakin.jpg" alt="Mevlâna, bugün"><span class="bar"></span><span class="tag l">Aşama 6</span><span class="tag r">Aşama 13</span></div>
+</div></section>
+
+<section id="referanslar"><div class="wrap">
+  <h2>Örnekler, uzaktan ve yakından</h2>
+  <p class="lede">Üç siteyi kendi tarayıcımızda açıp dört yakınlıkta görüntüledik. Her kartta sol üst en uzak, sağ alt en yakın hâl.</p>
+  <div class="refs">
+    <article class="ref"><img src="r_istanbul.jpg" alt="isometric istanbul dört yakınlıkta" loading="lazy" data-full="r_istanbul.jpg"><div class="txt"><h3>Istanbul</h3><ul>
+      <li>Uzaktan fotoğraf gibi, yakından yağlı boya: yüzeyler yumuşatılmış, kenarlar keskin.</li>
+      <li>Deniz ve kiremitler çok doygun, gölgeler temiz ve kısa.</li>
+      <li>İBB'nin 3D modelinde gerçek cepheler var, katlar o yüzden okunuyor.</li></ul></div></article>
+    <article class="ref"><img src="r_london.jpg" alt="tiny.london dört yakınlıkta" loading="lazy" data-full="r_london.jpg"><div class="txt"><h3>London</h3><ul>
+      <li>Piksel art, saate göre değişen ışık (ekran akşam tonunda).</li>
+      <li>Ağaçlar yuvarlak öbekler, binalar sade bloklar, gürültü yok.</li>
+      <li>Yakından bile fotoğraf izi kalmamış, tamamen çizim.</li></ul></div></article>
+    <article class="ref"><img src="r_nyc.jpg" alt="isometric.nyc dört yakınlıkta" loading="lazy" data-full="r_nyc.jpg"><div class="txt"><h3>New York</h3><ul>
+      <li>SimCity tarzı, cepheler baskın, en güçlü 3D hissi.</li>
+      <li>Her binanın kat ve pencere sırası seçiliyor.</li>
+      <li>Gökdelen şehri olduğu için cephe oranı doğal olarak yüksek.</li></ul></div></article>
+  </div>
+
+  <h3 style="margin:36px 0 12px;font:400 30px var(--display)">Yorum</h3>
+  <div class="notes">
+    <div class="note next"><b>"Canlandırılmış fotoğraf" hissi doğru</b>Fotoğraf stilindeki harita, 3D model görüntüsünün temizlenmiş ve boyanmış hâli. Üç örnekte de yakından bakınca fotoğraf dokusu yok, yüzeyler tek renkli ve düz.</div>
+    <div class="note next"><b>Kat görünürlüğü kaynaktan geliyor</b>Konya'nın 3D modeli dik çekilmiş fotoğraflardan; duvarlar bulanık ve kısa. İstanbul'un İBB modelinde cepheler gerçek. Bunu çizim talimatıyla ve daha alçak açıyla telafi etmemiz gerekiyor.</div>
+    <div class="note next"><b>Tutarlılık eğitilmiş modelden</b>Üçü de önce pahalı modelle birkaç yüz örnek üretip, açık bir modeli o stile eğitmiş. Tek bir stile kilitlenmiş model her karede aynı çiziyor.</div>
+  </div>
+</div></section>
+
+<section id="deneyler"><div class="wrap">
+  <h2>Denemeler</h2>
+  <p class="lede">Bugün para harcamadan denediklerimiz.</p>
+  <div class="exps">
+    <div class="exp"><h3>Hazır efekt filtreleri</h3><span class="verdict bad">Yetersiz</span>
+      <p>Hazır görüntü filtreleriyle resimsel efekt, kenar koruyan yumuşatma ve kontur denedik. Meydan taşlarına kalın siyah çizgiler ekliyor, görüntü kirleniyor. "Çizilmiş" hissi ancak yeniden çizimle geliyor.</p>
+      <figure><img src="x_filtre.jpg" alt="Dört filtre karşılaştırması" loading="lazy"><figcaption>Sol üst: bugünkü · sağ üst: hafif efekt · sol alt: resimsel · sağ alt: maket filtresi</figcaption></figure></div>
+    <div class="exp"><h3>Binaları dikeyde uzatmak, 30° açı</h3><span class="verdict mid">Az etkili, ama yardımcı</span>
+      <p>Render'da yükseklikleri 1,6 kat uzatıp açıyı 30°'ye indirdik. Konya'da binalar alçak ve duvar dokusu bulanık olduğu için tek başına fark küçük. Asıl etki, çizim talimatında katların ve cephelerin istenmesiyle birlikte gelir.</p>
+      <div class="cmp" data-cmp style="aspect-ratio: 2 / 1; cursor: default"><img src="x_dikey.jpg" alt="Normal ve uzatılmış yükseklik" style="object-fit:contain"><span class="tag l">35° · normal</span><span class="tag r">30° · ×1,6</span></div></div>
+    <div class="exp"><h3>Renk ayarı</h3><span class="verdict good">Kullanılıyor</span>
+      <p>Doygunluk, kontrast ve netlik. Haritada şu an açık.</p>
+      <figure><img src="x_renk.jpg" alt="Renk ayarı öncesi ve sonrası" loading="lazy"><figcaption>Önce · sonra</figcaption></figure></div>
+  </div>
+</div></section>
+
+<footer><div class="wrap"><span>Konya merkez maket haritası · Kasım 2026</span></div></footer>
+
+<div id="lb" hidden><img alt=""></div>
+
+<script>
+  // karşılaştırma kaydırıcıları
+  document.querySelectorAll('[data-cmp]').forEach((el) => {
+    if (el.querySelectorAll('img').length < 2) { el.querySelector('.bar')?.remove(); return; }
+    let on = false;
+    const set = (e) => { const r = el.getBoundingClientRect(); el.style.setProperty('--x', Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100)) + '%'); };
+    el.addEventListener('pointerdown', (e) => { on = true; el.setPointerCapture(e.pointerId); set(e); });
+    el.addEventListener('pointermove', (e) => { if (on) set(e); });
+    el.addEventListener('pointerup', () => { on = false; });
+    el.addEventListener('pointercancel', () => { on = false; });
+    el.tabIndex = 0; el.setAttribute('role', 'slider'); el.setAttribute('aria-label', 'Karşılaştırma çizgisi');
+    el.addEventListener('keydown', (e) => {
+      const cur = parseFloat(getComputedStyle(el).getPropertyValue('--x')) || 50;
+      if (e.key === 'ArrowLeft') el.style.setProperty('--x', Math.max(0, cur - 5) + '%');
+      if (e.key === 'ArrowRight') el.style.setProperty('--x', Math.min(100, cur + 5) + '%');
+    });
+  });
+  // büyütme
+  const lb = document.getElementById('lb'), lbi = lb.querySelector('img');
+  document.querySelectorAll('figure img, .ref img').forEach((im) => im.addEventListener('click', () => { lbi.src = im.dataset.full || im.src; lbi.alt = im.alt; lb.hidden = false; }));
+  lb.addEventListener('click', () => { lb.hidden = true; });
+  addEventListener('keydown', (e) => { if (e.key === 'Escape') lb.hidden = true; });
+</script>
